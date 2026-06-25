@@ -33,6 +33,14 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# internal project docs / AI tooling
+.claude/
+CONTEXT.md
+UI_PROMPT.md
+
+# design mockups (use Figma or cloud storage instead)
+design/
+
 # vercel
 .vercel
 

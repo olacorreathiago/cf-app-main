@@ -28,7 +28,7 @@ export async function middleware(request: NextRequest) {
 
   const isPublicPath = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
   const isAuthPath = pathname.startsWith("/login") || pathname.startsWith("/onboarding") || pathname.startsWith("/invite") || pathname.startsWith("/join");
-  const isProtectedPath = pathname.startsWith("/dashboard") || pathname.startsWith("/athlete") || pathname.startsWith("/manager");
+  const isProtectedPath = pathname.startsWith("/dashboard") || pathname.startsWith("/athlete") || pathname.startsWith("/manager") || pathname.startsWith("/box");
 
   // Unauthenticated user trying to access protected route
   if (!user && isProtectedPath) {
