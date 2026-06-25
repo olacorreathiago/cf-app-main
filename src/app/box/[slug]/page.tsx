@@ -24,32 +24,49 @@ function formatTime(starts_at: string): string {
 
 function ClassRow({ cls }: { cls: OverviewClass }) {
   const cfg = STATUS_CONFIG[cls.status];
+  const fillPct = cls.capacity > 0 ? Math.round((cls.confirmed_count / cls.capacity) * 100) : 0;
+  const isFull = cls.confirmed_count >= cls.capacity;
+
   return (
-    <div className="flex items-start gap-3 py-3">
-      <div className="w-12 shrink-0 text-right">
-        <span className="text-sm font-medium text-text-primary tabular-nums">
+    <div className={`flex items-stretch gap-0 rounded-xl overflow-hidden border ${cls.status === "ongoing" ? "border-accent/30 bg-accent/5" : "border-border bg-bg-base"}`}>
+      {/* Time stripe */}
+      <div className={`flex w-14 shrink-0 flex-col items-center justify-center py-3 ${cls.status === "ongoing" ? "bg-accent/10" : "bg-bg-input/50"}`}>
+        <span className="text-xs font-semibold text-text-primary tabular-nums leading-none">
           {formatTime(cls.starts_at)}
         </span>
+        <span className="mt-0.5 text-[9px] text-text-tertiary">{cls.duration_minutes}′</span>
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-text-primary truncate">{cls.name}</span>
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${cfg.cls}`}>
+
+      {/* Content */}
+      <div className="flex flex-1 min-w-0 flex-col justify-center gap-1 px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-text-primary truncate">{cls.name}</span>
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0 ${cfg.cls}`}>
             {cfg.label}
           </span>
         </div>
-        <div className="mt-0.5 flex items-center gap-3 flex-wrap">
-          <span className="text-xs text-text-tertiary">{cls.duration_minutes} min</span>
-          <span className="text-xs text-text-tertiary">
-            {cls.confirmed_count}/{cls.capacity} atletas
-          </span>
+
+        <div className="flex items-center gap-2 flex-wrap">
           {cls.coach_name && (
             <span className="text-xs text-text-tertiary truncate">{cls.coach_name}</span>
           )}
+          {cls.first_wod_title && (
+            <span className="text-xs text-text-secondary truncate">· {cls.first_wod_title}</span>
+          )}
         </div>
-        {cls.first_wod_title && (
-          <p className="mt-1 text-xs text-text-secondary truncate">WOD: {cls.first_wod_title}</p>
-        )}
+
+        {/* Capacity bar */}
+        <div className="flex items-center gap-2 mt-0.5">
+          <div className="h-1 flex-1 rounded-full bg-border overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${isFull ? "bg-red-400" : cls.status === "ongoing" ? "bg-accent" : "bg-text-tertiary/40"}`}
+              style={{ width: `${Math.min(fillPct, 100)}%` }}
+            />
+          </div>
+          <span className={`text-[10px] tabular-nums shrink-0 ${isFull ? "text-red-400" : "text-text-tertiary"}`}>
+            {cls.confirmed_count}/{cls.capacity}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -110,7 +127,7 @@ export default async function BoxOverviewPage({ params }: Props) {
             <p className="text-sm text-text-tertiary">Sem aulas publicadas para hoje.</p>
           </div>
         ) : (
-          <div className="px-5 pb-3 divide-y divide-border">
+          <div className="px-5 pb-4 space-y-2">
             {overview.todayClasses.map((cls) => (
               <ClassRow key={cls.id} cls={cls} />
             ))}
@@ -129,10 +146,11 @@ export default async function BoxOverviewPage({ params }: Props) {
       {isManager && (
         <section className="rounded-2xl border border-border bg-bg-card p-5 space-y-3">
           <p className="label-caps text-text-tertiary">Ações rápidas</p>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <QuickAction href={`/box/${slug}/classes`} label="Publicar aula" />
             <QuickAction href={`/box/${slug}/wods`} label="Criar WOD" />
             <QuickAction href={`/box/${slug}/members`} label="Convidar membro" />
+            <QuickAction href={`/box/${slug}/posts`} label="Criar post" />
           </div>
         </section>
       )}

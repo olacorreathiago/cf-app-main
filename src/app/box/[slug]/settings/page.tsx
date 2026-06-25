@@ -42,28 +42,28 @@ export default async function BoxSettingsPage({ params }: Props) {
   };
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-6 py-8 space-y-8">
+    <main className="mx-auto w-full max-w-3xl px-6 py-12 space-y-10">
       <div>
-        <h1 className="text-lg font-semibold text-text-primary">Definições</h1>
-        <p className="text-sm text-text-tertiary mt-0.5">
+        <h1 className="text-2xl font-bold text-text-primary">Definições</h1>
+        <p className="text-sm text-text-tertiary mt-1">
           {canEdit
             ? "Gere as informações e configurações da box."
             : "Só o owner e partners podem editar as definições."}
         </p>
       </div>
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6 space-y-4">
+      <section className="rounded-2xl border border-border bg-bg-card p-8 space-y-6">
         <div>
-          <h2 className="text-sm font-semibold text-text-primary">Informações da box</h2>
-          <p className="text-xs text-text-tertiary mt-0.5">Dados públicos e de contacto</p>
+          <h2 className="text-base font-semibold text-text-primary">Informações da box</h2>
+          <p className="text-sm text-text-tertiary mt-0.5">Dados públicos e de contacto</p>
         </div>
         <BoxInfoForm box={boxFull} canEdit={canEdit} />
       </section>
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6 space-y-4">
+      <section className="rounded-2xl border border-border bg-bg-card p-8 space-y-6">
         <div>
-          <h2 className="text-sm font-semibold text-text-primary">Modalidades</h2>
-          <p className="text-xs text-text-tertiary mt-0.5">
+          <h2 className="text-base font-semibold text-text-primary">Modalidades</h2>
+          <p className="text-sm text-text-tertiary mt-0.5">
             Tipos de aulas disponíveis na box — usados ao criar templates e aulas
           </p>
         </div>
@@ -74,10 +74,10 @@ export default async function BoxSettingsPage({ params }: Props) {
         />
       </section>
 
-      <section className="rounded-2xl border border-border bg-bg-card p-6 space-y-4">
+      <section className="rounded-2xl border border-border bg-bg-card p-8 space-y-6">
         <div>
-          <h2 className="text-sm font-semibold text-text-primary">Configurações operacionais</h2>
-          <p className="text-xs text-text-tertiary mt-0.5">Regras de reservas, cancelamentos e drop-ins</p>
+          <h2 className="text-base font-semibold text-text-primary">Configurações operacionais</h2>
+          <p className="text-sm text-text-tertiary mt-0.5">Regras de reservas, cancelamentos e drop-ins</p>
         </div>
         <BoxOperationalForm box={boxFull} canEdit={canEdit} />
       </section>

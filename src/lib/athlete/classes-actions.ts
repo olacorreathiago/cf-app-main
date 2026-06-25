@@ -9,6 +9,7 @@ import type { AthleteDashboardClass, AthleteDashboardWod } from "./dashboard-act
 export interface BoxBookingSettings {
   cancellation_window_hours: number;
   booking_advance_days: number;
+  max_waitlist: number;
 }
 
 export interface WeekClassesResult {
@@ -22,6 +23,7 @@ export interface WeekClassesResult {
 const DEFAULT_SETTINGS: BoxBookingSettings = {
   cancellation_window_hours: 1,
   booking_advance_days: 7,
+  max_waitlist: 5,
 };
 
 export async function fetchWodsForClasses(
@@ -150,6 +152,10 @@ export async function getAthleteWeekClasses(weekOffset = 0): Promise<WeekClasses
       typeof s.booking_advance_days === "number"
         ? s.booking_advance_days
         : DEFAULT_SETTINGS.booking_advance_days,
+    max_waitlist:
+      typeof s.max_waitlist === "number"
+        ? s.max_waitlist
+        : DEFAULT_SETTINGS.max_waitlist,
   };
 
   const now = new Date();
@@ -206,6 +212,19 @@ export async function getAthleteWeekClasses(weekOffset = 0): Promise<WeekClasses
     myBookingMap[b.class_id] = b.status as "confirmed" | "waitlist" | "cancelled";
   }
 
+  // Waitlist positions for classes where this athlete is waitlisted
+  const waitlistedIds = classIds.filter((id) => myBookingMap[id] === "waitlist");
+  const waitlistPositionMap: Record<string, number> = {};
+  if (waitlistedIds.length > 0) {
+    const { data: posRows } = await supabase.rpc("get_waitlist_positions", {
+      p_user_id: user.id,
+      p_class_ids: waitlistedIds,
+    });
+    for (const row of posRows ?? []) {
+      waitlistPositionMap[row.class_id] = row.waitlist_pos;
+    }
+  }
+
   const classes: AthleteDashboardClass[] = (rawClasses ?? []).map((c) => ({
     id: c.id,
     name: c.name,
@@ -217,6 +236,7 @@ export async function getAthleteWeekClasses(weekOffset = 0): Promise<WeekClasses
     confirmed_count: countMap[c.id]?.confirmed ?? 0,
     waitlist_count: countMap[c.id]?.waitlist ?? 0,
     my_booking_status: myBookingMap[c.id] ?? null,
+    my_waitlist_position: waitlistPositionMap[c.id],
   }));
 
   // -------------------------------------------------------------------------

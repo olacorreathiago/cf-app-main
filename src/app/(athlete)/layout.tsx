@@ -190,7 +190,7 @@ export default async function AthleteLayout({ children }: { children: React.Reac
             {isProfessional && (
               <Link
                 href="/dashboard"
-                className="hidden lg:inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors duration-150 hover:border-accent/30 hover:text-text-primary"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors duration-150 hover:border-accent/30 hover:text-text-primary"
               >
                 <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                   <rect x="1.5" y="1.5" width="11" height="11" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
@@ -202,7 +202,7 @@ export default async function AthleteLayout({ children }: { children: React.Reac
             {staffBox && (
               <Link
                 href={`/box/${staffBox.slug}`}
-                className="hidden lg:inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors duration-150 hover:border-accent/30 hover:text-text-primary"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors duration-150 hover:border-accent/30 hover:text-text-primary"
               >
                 <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                   <rect x="1.5" y="1.5" width="11" height="11" rx="2.5" stroke="currentColor" strokeWidth="1.5" />

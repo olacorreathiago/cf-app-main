@@ -1,6 +1,7 @@
 "use server";
 
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { boxInfoSchema, boxOperationalSchema, type BoxInfoInput, type BoxOperationalInput } from "@/schemas/box-settings";
 import type { BoxSettings } from "@/types";
@@ -38,10 +39,24 @@ export async function updateBoxInfo(boxId: string, input: BoxInfoInput): Promise
         email: parsed.data.email || null,
         website: parsed.data.website || null,
         description: parsed.data.description || null,
-        logo_url: parsed.data.logo_url || null,
       })
       .eq("id", boxId);
 
+    if (error) return { error: error.message };
+    revalidatePath(`/box/[slug]/settings`, "page");
+    return {};
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export async function updateBoxLogo(boxId: string, logoUrl: string): Promise<{ error?: string }> {
+  try {
+    await requireManagerRole(boxId);
+    const { error } = await supabaseAdmin
+      .from("boxes")
+      .update({ logo_url: logoUrl })
+      .eq("id", boxId);
     if (error) return { error: error.message };
     revalidatePath(`/box/[slug]/settings`, "page");
     return {};
@@ -70,6 +85,7 @@ export async function updateBoxOperational(boxId: string, input: BoxOperationalI
       cancellation_window_hours: parsed.data.cancellation_window_hours,
       booking_advance_days: parsed.data.booking_advance_days,
       default_capacity: parsed.data.default_capacity,
+      max_waitlist: parsed.data.max_waitlist,
     };
 
     const { error } = await supabase

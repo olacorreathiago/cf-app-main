@@ -83,6 +83,16 @@ const sections: NavSection[] = [
         ),
       },
       {
+        label: "Feed",
+        href: "/athlete/feed",
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <rect x="1.5" y="1.5" width="13" height="13" rx="3" stroke="currentColor" strokeWidth="1.35" />
+            <path d="M4.5 6h7M4.5 9h5" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+          </svg>
+        ),
+      },
+      {
         label: "Eventos",
         href: "/athlete/events",
         locked: true,
@@ -243,6 +253,16 @@ const drawerNavItems: NavItem[] = [
       <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
         <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
         <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.35" />
+      </svg>
+    ),
+  },
+  {
+    label: "Feed",
+    href: "/athlete/feed",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="1.5" y="1.5" width="13" height="13" rx="3" stroke="currentColor" strokeWidth="1.35" />
+        <path d="M4.5 6h7M4.5 9h5" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
       </svg>
     ),
   },

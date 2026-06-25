@@ -24,6 +24,7 @@ export interface AthleteDashboardClass {
   confirmed_count: number;
   waitlist_count: number;
   my_booking_status: "confirmed" | "waitlist" | "cancelled" | null;
+  my_waitlist_position?: number;
   wods?: AthleteDashboardWod[];
 }
 
@@ -71,6 +72,7 @@ export interface AthleteDashboardData {
   recentPrs: AthleteDashboardPr[];
   cutoffHours: number;
   advanceDays: number;
+  maxWaitlist: number;
   statsWodsThisMonth: number;
   statsWodsPrevMonth: number;
   statsTotalPrs: number;
@@ -128,9 +130,13 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
     typeof boxSettings.booking_advance_days === "number"
       ? boxSettings.booking_advance_days
       : 7;
+  const maxWaitlist =
+    typeof boxSettings.max_waitlist === "number"
+      ? boxSettings.max_waitlist
+      : 5;
 
   if (!activeBox) {
-    return { profile, activeBox: null, allBoxes, todayClasses: [], todayWods: [], upcomingClasses: [], recentPrs: [], cutoffHours: 1, advanceDays: 7, statsWodsThisMonth: 0, statsWodsPrevMonth: 0, statsTotalPrs: 0 };
+    return { profile, activeBox: null, allBoxes, todayClasses: [], todayWods: [], upcomingClasses: [], recentPrs: [], cutoffHours: 1, advanceDays: 7, maxWaitlist: 5, statsWodsThisMonth: 0, statsWodsPrevMonth: 0, statsTotalPrs: 0 };
   }
 
   // Today's scheduled classes — use local date string to avoid UTC offset shifting the day boundary
@@ -187,6 +193,19 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
     myBookingMap[b.class_id] = b.status as "confirmed" | "waitlist" | "cancelled";
   }
 
+  // Waitlist positions for today's classes where user is waitlisted
+  const todayWaitlistedIds = classIds.filter((id) => myBookingMap[id] === "waitlist");
+  const waitlistPositionMap: Record<string, number> = {};
+  if (todayWaitlistedIds.length > 0) {
+    const { data: posRows } = await supabase.rpc("get_waitlist_positions", {
+      p_user_id: user.id,
+      p_class_ids: todayWaitlistedIds,
+    });
+    for (const row of posRows ?? []) {
+      waitlistPositionMap[row.class_id] = row.waitlist_pos;
+    }
+  }
+
   const todayClasses: AthleteDashboardClass[] = (rawClasses ?? []).map((c) => ({
     id: c.id,
     name: c.name,
@@ -198,6 +217,7 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
     confirmed_count: countMap[c.id]?.confirmed ?? 0,
     waitlist_count: countMap[c.id]?.waitlist ?? 0,
     my_booking_status: myBookingMap[c.id] ?? null,
+    my_waitlist_position: waitlistPositionMap[c.id],
   }));
 
   // Attach WODs to today's confirmed classes (enables result registration in ClassCard)
@@ -308,6 +328,19 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
   const upcomingBookingMap: Record<string, "confirmed" | "waitlist" | "cancelled"> = {};
   for (const b of upcomingBookings ?? []) { upcomingBookingMap[b.class_id] = b.status as "confirmed" | "waitlist" | "cancelled"; }
 
+  // Waitlist positions for upcoming classes where user is waitlisted
+  const upcomingWaitlistedIds = upcomingClassIds.filter((id) => upcomingBookingMap[id] === "waitlist");
+  const upcomingWaitlistPositionMap: Record<string, number> = {};
+  if (upcomingWaitlistedIds.length > 0) {
+    const { data: posRows } = await supabase.rpc("get_waitlist_positions", {
+      p_user_id: user.id,
+      p_class_ids: upcomingWaitlistedIds,
+    });
+    for (const row of posRows ?? []) {
+      upcomingWaitlistPositionMap[row.class_id] = row.position;
+    }
+  }
+
   const upcomingClasses: AthleteDashboardClass[] = (rawUpcoming ?? [])
     .map((c) => ({
       id: c.id,
@@ -320,6 +353,7 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
       confirmed_count: upcomingCountMap[c.id]?.confirmed ?? 0,
       waitlist_count: upcomingCountMap[c.id]?.waitlist ?? 0,
       my_booking_status: upcomingBookingMap[c.id] ?? null,
+      my_waitlist_position: upcomingWaitlistPositionMap[c.id],
     }))
     .filter((c) => c.my_booking_status === "confirmed" || c.my_booking_status === "waitlist");
 
@@ -370,6 +404,7 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
     upcomingClasses,
     cutoffHours,
     advanceDays,
+    maxWaitlist,
     statsWodsThisMonth: wodsCount ?? 0,
     statsWodsPrevMonth: wodsPrevCount ?? 0,
     statsTotalPrs: prsCount ?? 0,

@@ -12,6 +12,7 @@ interface Props {
   cls: AthleteDashboardClass;
   cutoffHours?: number;
   advanceDays?: number;
+  maxWaitlist?: number;
   /** Show weekday + date in the time column (used in "Já participei" section) */
   showDate?: boolean;
   boxId?: string;
@@ -72,7 +73,7 @@ function parseClassTime(isoStr: string): Date {
   return new Date(isoStr.replace("Z", "").replace(/\+\d{2}:\d{2}$/, ""));
 }
 
-export function ClassCard({ cls, cutoffHours = 1, advanceDays = 7, showDate = false, boxId, noFade = false }: Props) {
+export function ClassCard({ cls, cutoffHours = 1, advanceDays = 7, maxWaitlist = 5, showDate = false, boxId, noFade = false }: Props) {
   const startsAt = parseClassTime(cls.starts_at);
   const endsAt = new Date(startsAt.getTime() + cls.duration_minutes * 60_000);
   const now = new Date();
@@ -108,6 +109,7 @@ export function ClassCard({ cls, cutoffHours = 1, advanceDays = 7, showDate = fa
 
   const [bookingStatus, setBookingStatus] = useState(cls.my_booking_status);
   const [confirmedCount, setConfirmedCount] = useState(cls.confirmed_count);
+  const [waitlistPosition] = useState(cls.my_waitlist_position);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -269,7 +271,11 @@ export function ClassCard({ cls, cutoffHours = 1, advanceDays = 7, showDate = fa
               ? "bg-green-500/5 border-green-500/10 text-green-600 dark:text-green-400"
               : "bg-orange-500/5 border-orange-500/10 text-orange-500",
           ].join(" ")}>
-            {isBooked ? "A tua reserva está confirmada" : "Estás na lista de espera"}
+            {isBooked
+              ? "A tua reserva está confirmada"
+              : waitlistPosition
+              ? `Lista de espera · ${waitlistPosition} de ${maxWaitlist}`
+              : "Estás na lista de espera"}
           </div>
         )}
 

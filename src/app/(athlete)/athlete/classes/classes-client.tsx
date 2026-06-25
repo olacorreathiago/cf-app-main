@@ -15,6 +15,7 @@ interface Props {
   boxId: string;
   cutoffHours: number;
   advanceDays: number;
+  maxWaitlist: number;
   weekStart: string; // ISO date string "yyyy-MM-dd"
   weekOffset: number;
 }
@@ -25,6 +26,7 @@ export function ClassesClient({
   boxId,
   cutoffHours,
   advanceDays,
+  maxWaitlist,
   weekStart,
   weekOffset,
 }: Props) {
@@ -200,7 +202,7 @@ export function ClassesClient({
           </div>
           <div className="space-y-2">
             {attendedClasses.map((cls) => (
-              <ClassCard key={cls.id} cls={cls} cutoffHours={cutoffHours} advanceDays={advanceDays} showDate boxId={boxId} />
+              <ClassCard key={cls.id} cls={cls} cutoffHours={cutoffHours} advanceDays={advanceDays} maxWaitlist={maxWaitlist} showDate boxId={boxId} />
             ))}
           </div>
         </section>
@@ -248,7 +250,7 @@ export function ClassesClient({
                 </div>
                 <div className="space-y-2">
                   {dayCls.map((cls) => (
-                    <ClassCard key={cls.id} cls={cls} cutoffHours={cutoffHours} advanceDays={advanceDays} boxId={boxId} />
+                    <ClassCard key={cls.id} cls={cls} cutoffHours={cutoffHours} advanceDays={advanceDays} maxWaitlist={maxWaitlist} boxId={boxId} />
                   ))}
                 </div>
               </section>

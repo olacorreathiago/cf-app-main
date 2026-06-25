@@ -69,6 +69,7 @@ export default async function AthleteClassesPage({ searchParams }: Props) {
         boxId={boxId}
         cutoffHours={settings.cancellation_window_hours}
         advanceDays={settings.booking_advance_days}
+        maxWaitlist={settings.max_waitlist}
         weekStart={format(weekStart, "yyyy-MM-dd")}
         weekOffset={weekOffset}
       />

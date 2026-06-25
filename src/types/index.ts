@@ -43,6 +43,7 @@ export interface BoxSettings {
   cancellation_window_hours?: number;
   booking_advance_days?: number;
   default_capacity?: number;
+  max_waitlist?: number;
   modalities?: string[];
 }
 

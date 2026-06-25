@@ -78,8 +78,36 @@ export async function addAthleteToClass(
   userId: string,
   boxId: string,
   slug: string
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; status?: "confirmed" | "waitlist" }> {
   const supabase = await supabaseServer();
+
+  // Check current capacity
+  const { data: cls } = await supabase
+    .from("classes")
+    .select("capacity, boxes(settings)")
+    .eq("id", classId)
+    .single();
+
+  if (!cls) return { error: "Aula não encontrada." };
+
+  const { data: countRows } = await supabase.rpc("get_class_booking_counts", {
+    p_class_ids: [classId],
+  });
+  const counts = countRows?.[0];
+  const confirmedCount = counts?.confirmed_count ?? 0;
+  const waitlistCount = counts?.waitlist_count ?? 0;
+  const isFull = confirmedCount >= cls.capacity;
+
+  const boxSettings = (cls.boxes as unknown as { settings?: Record<string, unknown> } | null)?.settings ?? {};
+  const maxWaitlist = typeof boxSettings.max_waitlist === "number" ? boxSettings.max_waitlist : 5;
+
+  let targetStatus: "confirmed" | "waitlist" = "confirmed";
+  if (isFull) {
+    if (maxWaitlist === 0 || waitlistCount >= maxWaitlist) {
+      return { error: "Aula e lista de espera estão cheias." };
+    }
+    targetStatus = "waitlist";
+  }
 
   // Upsert: if cancelled booking exists, reactivate; otherwise insert
   const { data: existing } = await supabase
@@ -91,22 +119,22 @@ export async function addAthleteToClass(
 
   if (existing) {
     if (existing.status === "confirmed" || existing.status === "waitlist") {
-      return {}; // already in
+      return { status: existing.status }; // already in
     }
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("bookings")
-      .update({ status: "confirmed" })
+      .update({ status: targetStatus, created_at: new Date().toISOString() })
       .eq("id", existing.id);
     if (error) return { error: "Erro ao adicionar atleta." };
   } else {
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("bookings")
-      .insert({ class_id: classId, user_id: userId, status: "confirmed" });
+      .insert({ class_id: classId, user_id: userId, status: targetStatus });
     if (error) return { error: "Erro ao adicionar atleta." };
   }
 
   revalidatePath(`/box/${slug}/classes`);
-  return {};
+  return { status: targetStatus };
 }
 
 export async function getAthleteClassResultCount(
@@ -141,12 +169,38 @@ export async function removeAthleteFromClass(
       .eq("box_id", boxId);
   }
 
+  // Fetch current status before cancelling to decide on waitlist promotion
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("status")
+    .eq("id", bookingId)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("bookings")
     .update({ status: "cancelled" })
     .eq("id", bookingId);
 
   if (error) return { error: "Erro ao remover atleta." };
+
+  // Promote first waitlisted athlete when a confirmed spot is freed
+  if (booking?.status === "confirmed" && opts?.classId) {
+    const { data: next } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("class_id", opts.classId)
+      .eq("status", "waitlist")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (next) {
+      await supabase
+        .from("bookings")
+        .update({ status: "confirmed" })
+        .eq("id", next.id);
+    }
+  }
 
   revalidatePath(`/box/${slug}/classes`);
   return {};

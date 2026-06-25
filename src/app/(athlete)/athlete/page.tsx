@@ -2,6 +2,8 @@ import { getAthleteDashboardData } from "@/lib/athlete/dashboard-actions";
 import type { AthleteDashboardPr } from "@/lib/athlete/dashboard-actions";
 import { ClassCard } from "@/components/athlete/class-card";
 import { WodCard } from "@/components/athlete/wod-card";
+import { FeedPreview } from "@/components/athlete/feed-preview";
+import { getLatestBoxPosts } from "@/lib/athlete/feed-actions";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 import Link from "next/link";
@@ -16,37 +18,14 @@ function buildGreeting(fullName: string | null, nickname: string | null): string
   return fullName;
 }
 
-// ── Mock data for community section (replace with real data when available) ──
-const MOCK_ANNOUNCEMENTS = [
-  {
-    id: "1",
-    type: "event" as const,
-    title: "Competition Day",
-    body: "Sábado, 28 Jun — Inscrições abertas até sexta. Equipas de 2.",
-    cta: "Inscrever",
-  },
-  {
-    id: "2",
-    type: "news" as const,
-    title: "Novo horário de verão",
-    body: "A partir de 1 Jul, as aulas das 12h passam para as 12h30.",
-    cta: null,
-  },
-  {
-    id: "3",
-    type: "note" as const,
-    title: "Limpeza de equipamento",
-    body: "Por favor limpem as barras e kettlebells após o treino. Obrigado!",
-    cta: null,
-  },
-];
-
 export default async function AthleteDashboardPage() {
   const {
     profile, activeBox, todayClasses, todayWods,
-    upcomingClasses, recentPrs, cutoffHours, advanceDays,
+    upcomingClasses, recentPrs, cutoffHours, advanceDays, maxWaitlist,
     statsWodsThisMonth, statsWodsPrevMonth, statsTotalPrs,
   } = await getAthleteDashboardData();
+
+  const latestPosts = activeBox ? await getLatestBoxPosts(activeBox.id, 3) : [];
 
   const nameDisplay = buildGreeting(profile.full_name, profile.nickname);
   const todayLabel = format(new Date(), "EEEE, d 'de' MMMM", { locale: pt });
@@ -102,7 +81,7 @@ export default async function AthleteDashboardPage() {
                   {todayClasses
                     .filter((c) => c.my_booking_status === "confirmed")
                     .map((cls) => (
-                      <ClassCard key={cls.id} cls={cls} cutoffHours={cutoffHours} advanceDays={advanceDays} boxId={activeBox.id} noFade />
+                      <ClassCard key={cls.id} cls={cls} cutoffHours={cutoffHours} advanceDays={advanceDays} maxWaitlist={maxWaitlist} boxId={activeBox.id} noFade />
                     ))}
                 </div>
               )}
@@ -133,7 +112,7 @@ export default async function AthleteDashboardPage() {
               ) : (
                 <div className="space-y-2">
                   {upcomingClasses.map((cls) => (
-                    <ClassCard key={cls.id} cls={cls} cutoffHours={cutoffHours} advanceDays={advanceDays} showDate boxId={activeBox.id} noFade />
+                    <ClassCard key={cls.id} cls={cls} cutoffHours={cutoffHours} advanceDays={advanceDays} maxWaitlist={maxWaitlist} showDate boxId={activeBox.id} noFade />
                   ))}
                 </div>
               )}
@@ -237,20 +216,28 @@ export default async function AthleteDashboardPage() {
               </div>
             )}
 
-            {/* Community / Box announcements */}
-            <div className="rounded-2xl border border-border bg-bg-card overflow-hidden">
-              <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-                <p className="label-caps text-text-tertiary">Recados da box</p>
-                <span className="rounded-full bg-bg-input px-2 py-0.5 text-[10px] font-medium text-text-tertiary">
-                  {activeBox.name}
-                </span>
+            {/* Feed preview */}
+            {latestPosts.length > 0 && (
+              <FeedPreview posts={latestPosts} boxName={activeBox.name} />
+            )}
+            {latestPosts.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-border bg-bg-card overflow-hidden">
+                <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+                  <p className="label-caps text-text-tertiary">Recados da box</p>
+                  <Link
+                    href="/athlete/feed"
+                    className="text-xs text-text-tertiary hover:text-text-primary transition-colors"
+                  >
+                    Ver feed →
+                  </Link>
+                </div>
+                <div className="px-4 pb-4">
+                  <p className="text-sm text-text-tertiary">
+                    Sem recados recentes da box.
+                  </p>
+                </div>
               </div>
-              <div className="divide-y divide-border">
-                {MOCK_ANNOUNCEMENTS.map((a) => (
-                  <AnnouncementRow key={a.id} item={a} />
-                ))}
-              </div>
-            </div>
+            )}
 
           </div>
         </div>
@@ -292,40 +279,3 @@ function PrRow({ pr }: { pr: AthleteDashboardPr }) {
   );
 }
 
-const ANNOUNCEMENT_ICONS = {
-  event: (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" className="text-accent">
-      <rect x="1.5" y="2.5" width="11" height="10" rx="2" stroke="currentColor" strokeWidth="1.35" />
-      <path d="M5 1v3M9 1v3M1.5 6h11" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
-    </svg>
-  ),
-  news: (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" className="text-blue-500">
-      <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.35" />
-      <path d="M7 6.5V10" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
-      <circle cx="7" cy="4.5" r="0.75" fill="currentColor" />
-    </svg>
-  ),
-  note: (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" className="text-text-tertiary">
-      <path d="M2.5 3.5h9M2.5 7h9M2.5 10.5h5" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
-    </svg>
-  ),
-} as const;
-
-function AnnouncementRow({ item }: { item: typeof MOCK_ANNOUNCEMENTS[number] }) {
-  return (
-    <div className="px-4 py-3 space-y-1">
-      <div className="flex items-center gap-1.5">
-        {ANNOUNCEMENT_ICONS[item.type]}
-        <p className="text-xs font-semibold text-text-primary">{item.title}</p>
-      </div>
-      <p className="text-[11px] text-text-tertiary leading-relaxed">{item.body}</p>
-      {item.cta && (
-        <button className="mt-1 text-[11px] font-semibold text-accent hover:underline">
-          {item.cta} →
-        </button>
-      )}
-    </div>
-  );
-}
