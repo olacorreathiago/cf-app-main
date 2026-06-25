@@ -1,0 +1,330 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* =============================================================================
+   DESIGN TOKENS
+   Single source of truth — never use hardcoded values in components.
+   Dark is the default theme. Light mode is supported via next-themes.
+============================================================================= */
+
+:root {
+  /* Accent */
+  --color-accent:            #C8FF00;
+  --color-accent-hover:      #B0E000;
+  --color-accent-fg:         #0A0A0A;   /* text on accent backgrounds */
+
+  /* Surfaces — Light mode */
+  --color-bg-base:           #F5F5F0;
+  --color-bg-card:           #FFFFFF;
+  --color-bg-card-hover:     #F0F0EB;
+  --color-bg-overlay:        rgba(0, 0, 0, 0.04);
+  --color-bg-input:          #EBEBEB;
+
+  /* Text — Light mode */
+  --color-text-primary:      #0F0F0F;
+  --color-text-secondary:    #5A5A5A;
+  --color-text-tertiary:     #9A9A9A;
+  --color-text-disabled:     #CCCCCC;
+
+  /* Border — Light mode */
+  --color-border:            #E2E2DC;
+  --color-border-strong:     #C8C8C2;
+
+  /* Status */
+  --color-success:           #22C55E;
+  --color-warning:           #F59E0B;
+  --color-error:             #EF4444;
+  --color-info:              #3B82F6;
+
+  /* Radius */
+  --radius-sm:               8px;
+  --radius-md:               12px;
+  --radius-lg:               16px;
+  --radius-xl:               24px;
+  --radius-full:             9999px;
+  --radius:                  12px;   /* shadcn base */
+
+  /* Shadow */
+  --shadow-sm:               0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:               0 4px 16px rgba(0,0,0,0.08);
+  --shadow-card:             0 2px 8px rgba(0,0,0,0.06);
+
+  /* shadcn/ui variable mapping — Light */
+  --background:              var(--color-bg-base);
+  --foreground:              var(--color-text-primary);
+  --card:                    var(--color-bg-card);
+  --card-foreground:         var(--color-text-primary);
+  --popover:                 var(--color-bg-card);
+  --popover-foreground:      var(--color-text-primary);
+  --primary:                 var(--color-accent);
+  --primary-foreground:      var(--color-accent-fg);
+  --secondary:               var(--color-bg-card);
+  --secondary-foreground:    var(--color-text-primary);
+  --muted:                   var(--color-bg-overlay);
+  --muted-foreground:        var(--color-text-tertiary);
+  --accent:                  var(--color-accent);
+  --accent-foreground:       var(--color-accent-fg);
+  --destructive:             var(--color-error);
+  --destructive-foreground:  #FFFFFF;
+  --border:                  var(--color-border);
+  --input:                   var(--color-bg-input);
+  --ring:                    var(--color-accent);
+
+  /* Sidebar — Light */
+  --sidebar:                 var(--color-bg-card);
+  --sidebar-foreground:      var(--color-text-primary);
+  --sidebar-primary:         var(--color-accent);
+  --sidebar-primary-foreground: var(--color-accent-fg);
+  --sidebar-accent:          var(--color-bg-overlay);
+  --sidebar-accent-foreground: var(--color-text-primary);
+  --sidebar-border:          var(--color-border);
+  --sidebar-ring:            var(--color-accent);
+}
+
+/* Dark mode — activated by class="dark" on <html> (next-themes) */
+.dark {
+  --color-bg-base:           #0A0A0A;
+  --color-bg-card:           #141414;
+  --color-bg-card-hover:     #1C1C1C;
+  --color-bg-overlay:        rgba(255, 255, 255, 0.04);
+  --color-bg-input:          #1A1A1A;
+
+  --color-text-primary:      #F0F0F0;
+  --color-text-secondary:    #A0A0A0;
+  --color-text-tertiary:     #606060;
+  --color-text-disabled:     #383838;
+
+  --color-border:            #1E1E1E;
+  --color-border-strong:     #2A2A2A;
+
+  --shadow-sm:               0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md:               0 4px 16px rgba(0,0,0,0.4);
+  --shadow-card:             0 2px 8px rgba(0,0,0,0.3);
+
+  /* shadcn/ui variable mapping — Dark */
+  --background:              var(--color-bg-base);
+  --foreground:              var(--color-text-primary);
+  --card:                    var(--color-bg-card);
+  --card-foreground:         var(--color-text-primary);
+  --popover:                 var(--color-bg-card);
+  --popover-foreground:      var(--color-text-primary);
+  --primary:                 var(--color-accent);
+  --primary-foreground:      var(--color-accent-fg);
+  --secondary:               var(--color-bg-card);
+  --secondary-foreground:    var(--color-text-primary);
+  --muted:                   var(--color-bg-card);
+  --muted-foreground:        var(--color-text-secondary);
+  --accent:                  var(--color-accent);
+  --accent-foreground:       var(--color-accent-fg);
+  --destructive:             var(--color-error);
+  --destructive-foreground:  #FFFFFF;
+  --border:                  var(--color-border);
+  --input:                   var(--color-bg-input);
+  --ring:                    var(--color-accent);
+
+  /* Sidebar — Dark */
+  --sidebar:                 #0A0A0A;
+  --sidebar-foreground:      var(--color-text-primary);
+  --sidebar-primary:         var(--color-accent);
+  --sidebar-primary-foreground: var(--color-accent-fg);
+  --sidebar-accent:          var(--color-bg-card-hover);
+  --sidebar-accent-foreground: var(--color-text-primary);
+  --sidebar-border:          var(--color-border);
+  --sidebar-ring:            var(--color-accent);
+}
+
+/* =============================================================================
+   TAILWIND THEME MAPPING
+   Maps CSS tokens to Tailwind utility classes.
+============================================================================= */
+
+@theme inline {
+  /* Colours */
+  --color-background:                var(--background);
+  --color-foreground:                var(--foreground);
+  --color-card:                      var(--card);
+  --color-card-foreground:           var(--card-foreground);
+  --color-popover:                   var(--popover);
+  --color-popover-foreground:        var(--popover-foreground);
+  --color-primary:                   var(--primary);
+  --color-primary-foreground:        var(--primary-foreground);
+  --color-secondary:                 var(--secondary);
+  --color-secondary-foreground:      var(--secondary-foreground);
+  --color-muted:                     var(--muted);
+  --color-muted-foreground:          var(--muted-foreground);
+  --color-accent:                    var(--accent);
+  --color-accent-foreground:         var(--accent-foreground);
+  --color-destructive:               var(--destructive);
+  --color-border:                    var(--border);
+  --color-input:                     var(--input);
+  --color-ring:                      var(--ring);
+
+  /* Sidebar */
+  --color-sidebar:                   var(--sidebar);
+  --color-sidebar-foreground:        var(--sidebar-foreground);
+  --color-sidebar-primary:           var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent:            var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border:            var(--sidebar-border);
+  --color-sidebar-ring:              var(--sidebar-ring);
+
+  /* Semantic colour utilities (use these in components) */
+  --color-bg-base:                   var(--color-bg-base);
+  --color-bg-card:                   var(--color-bg-card);
+  --color-bg-card-hover:             var(--color-bg-card-hover);
+  --color-bg-input:                  var(--color-bg-input);
+  --color-text-primary:              var(--color-text-primary);
+  --color-text-secondary:            var(--color-text-secondary);
+  --color-text-tertiary:             var(--color-text-tertiary);
+  --color-text-disabled:             var(--color-text-disabled);
+  --color-border-strong:             var(--color-border-strong);
+  --color-success:                   var(--color-success);
+  --color-warning:                   var(--color-warning);
+  --color-error:                     var(--color-error);
+  --color-info:                      var(--color-info);
+  --color-accent-hover:              var(--color-accent-hover);
+  --color-accent-fg:                 var(--color-accent-fg);
+
+  /* Radius */
+  --radius-sm:   var(--radius-sm);
+  --radius-md:   var(--radius-md);
+  --radius-lg:   var(--radius-lg);
+  --radius-xl:   var(--radius-xl);
+  --radius-full: var(--radius-full);
+
+  /* Shadows */
+  --shadow-sm:   var(--shadow-sm);
+  --shadow-md:   var(--shadow-md);
+  --shadow-card: var(--shadow-card);
+
+  /* Fonts (set via next/font in layout.tsx) */
+  --font-sans:    var(--font-body);
+  --font-heading: var(--font-display);
+}
+
+/* =============================================================================
+   BASE STYLES
+============================================================================= */
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    @apply border-border;
+  }
+
+  html {
+    @apply bg-background text-foreground font-sans;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    min-height: 100svh;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(200, 255, 0, 0.18) 0%, transparent 65%),
+      var(--color-bg-base);
+  }
+
+  /* Focus visible — never remove without replacement */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  button:not([disabled]),
+  [role="button"]:not([disabled]) {
+    cursor: pointer;
+  }
+
+  ::selection {
+    background: rgba(200, 255, 0, 0.85);
+    color: #0A0A0A;
+  }
+
+  /* Reduced motion — respect user preference */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* =============================================================================
+   TYPOGRAPHY UTILITIES
+============================================================================= */
+
+/* Display / hero headings — League Gothic uppercase */
+.font-display {
+  font-family: var(--font-display), sans-serif;
+  text-transform: uppercase;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* Metric numbers — tabular for stable width */
+.font-metric {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/* Small caps label */
+.label-caps {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+/* =============================================================================
+   SURFACE UTILITIES
+============================================================================= */
+
+.surface-card {
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.surface-glass {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Left accent bar — used in class/WOD cards */
+.accent-bar {
+  border-left: 3px solid var(--color-accent);
+}
+
+/* =============================================================================
+   MATERIAL SYMBOLS
+============================================================================= */
+
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-style: normal;
+  font-weight: 400;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  direction: ltr;
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
