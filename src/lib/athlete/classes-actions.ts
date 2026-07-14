@@ -1,6 +1,7 @@
 "use server";
 
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { startOfWeek, endOfWeek, addWeeks } from "date-fns";
@@ -198,6 +199,19 @@ export async function getAthleteWeekClasses(weekOffset = 0): Promise<WeekClasses
   for (const row of countRows ?? []) {
     countMap[row.class_id] = { confirmed: row.confirmed_count ?? 0, waitlist: row.waitlist_count ?? 0 };
   }
+  if (classIds.length > 0) {
+    const { data: trialRows } = await supabaseAdmin
+      .from("trials")
+      .select("class_id")
+      .in("class_id", classIds)
+      .not("status", "in", '("lost","converted")');
+    for (const t of trialRows ?? []) {
+      if (t.class_id) {
+        if (!countMap[t.class_id]) countMap[t.class_id] = { confirmed: 0, waitlist: 0 };
+        countMap[t.class_id].confirmed += 1;
+      }
+    }
+  }
 
   // Athlete's own bookings
   const { data: myBookings } = classIds.length > 0
@@ -343,6 +357,18 @@ export interface ClassAttendee {
 
 export async function getClassAttendees(classId: string): Promise<ClassAttendee[]> {
   const supabase = await supabaseServer();
-  const { data } = await supabase.rpc("get_class_attendees", { p_class_id: classId });
-  return (data ?? []) as ClassAttendee[];
+  const [{ data: bookingAttendees }, { data: trials }] = await Promise.all([
+    supabase.rpc("get_class_attendees", { p_class_id: classId }),
+    supabaseAdmin
+      .from("trials")
+      .select("id, name")
+      .eq("class_id", classId),
+  ]);
+  const trialAttendees: ClassAttendee[] = (trials ?? []).map((t) => ({
+    user_id: `trial-${t.id}`,
+    full_name: t.name,
+    nickname: null,
+    avatar_url: null,
+  }));
+  return [...(bookingAttendees ?? []) as ClassAttendee[], ...trialAttendees];
 }

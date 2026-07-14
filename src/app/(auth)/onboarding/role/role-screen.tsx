@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { OnboardingShell } from "@/components/shared";
+import { AuthSplitShell } from "@/components/shared";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { cn } from "@/lib/utils";
 
@@ -41,75 +41,64 @@ export function RoleScreen() {
   }
 
   return (
-    <OnboardingShell>
-      <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="flex flex-1 flex-col justify-between lg:justify-center lg:gap-12"
-      >
-        {/* Heading */}
-        <motion.div variants={item} className="pt-6 lg:pt-0">
-          <p className="label-caps text-text-tertiary mb-3">Começo</p>
-          <h1 className="font-display text-[2.6rem] leading-[0.92] text-text-primary">
-            Como queres<br />começar?
-          </h1>
-        </motion.div>
+    <AuthSplitShell>
+      <motion.div variants={container} initial="hidden" animate="show">
+        <motion.h1
+          variants={item}
+          className="mb-6 text-center font-display text-3xl uppercase leading-none tracking-tight text-white lg:text-4xl"
+        >
+          Vamos começar!
+        </motion.h1>
 
-        {/* Options */}
-        <motion.div variants={item} className="space-y-3 pb-2">
-          <RoleButton
-            label="Sou atleta"
-            description="Marcar aulas, registar WODs e acompanhar a minha evolução."
+        <motion.div variants={item} className="space-y-3">
+          <RoleCard
+            label="Sou Atleta"
+            description="Marcar aulas, registar WODs e evoluir."
             onClick={() => handleSelect("athlete")}
           />
-          <RoleButton
-            label="Sou profissional"
-            description="Gerir a minha box, coaches e membros."
+          <RoleCard
+            label="Sou Profissional"
+            description="Gerir a tua box, coaches e membros."
             onClick={() => handleSelect("professional")}
           />
         </motion.div>
       </motion.div>
-    </OnboardingShell>
+    </AuthSplitShell>
   );
 }
 
-interface RoleButtonProps {
+interface RoleCardProps {
   label: string;
   description: string;
   onClick: () => void;
 }
 
-function RoleButton({ label, description, onClick }: RoleButtonProps) {
+function RoleCard({ label, description, onClick }: RoleCardProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "group w-full rounded-2xl border border-border bg-bg-card px-5 py-4 text-left",
-        "transition-all duration-150",
-        "hover:border-accent/40 hover:bg-bg-card-hover",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        "active:scale-[0.99]"
+        "group flex w-full items-center justify-between gap-4 rounded-2xl border border-white/[0.12] bg-white/[0.05] px-5 py-4 text-left",
+        "transition-colors duration-150 hover:border-accent/40 hover:bg-white/[0.07]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]"
       )}
     >
-      <div className="flex items-center justify-between gap-4">
-        <div className="space-y-0.5">
-          <p className="text-base font-semibold text-text-primary">{label}</p>
-          <p className="text-sm leading-snug text-text-tertiary">{description}</p>
-        </div>
-        {/* Arrow */}
-        <span className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-          "bg-bg-input text-text-tertiary",
-          "transition-all duration-150",
-          "group-hover:bg-accent group-hover:text-accent-fg"
-        )}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-            <path d="M2.5 7h9M8 3.5l3.5 3.5L8 10.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
+      <div>
+        <p className="text-base font-semibold text-white">{label}</p>
+        <p className="mt-0.5 text-sm text-white/45">{description}</p>
       </div>
+      <span
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+          "bg-white/[0.06] text-white/70 transition-colors duration-150",
+          "group-hover:bg-accent group-hover:text-accent-fg"
+        )}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
     </button>
   );
 }

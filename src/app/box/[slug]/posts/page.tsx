@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getBoxPosts } from "@/lib/box/post-actions";
 import { PostsClient } from "./posts-client";
+
+export const metadata: Metadata = { title: "Posts" };
 
 interface Props {
   params: Promise<{ slug: string }>;

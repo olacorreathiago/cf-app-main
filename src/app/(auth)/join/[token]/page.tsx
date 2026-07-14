@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { joinBoxByToken } from "@/lib/invite/actions";
+
+export const metadata: Metadata = { title: "Entrar na Box" };
 
 interface Props {
   params: Promise<{ token: string }>;

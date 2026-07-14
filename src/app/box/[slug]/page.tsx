@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getBoxOverviewData, type OverviewClass } from "@/lib/box/overview-actions";
+
+export const metadata: Metadata = { title: "Visão Geral" };
 
 interface Props {
   params: Promise<{ slug: string }>;

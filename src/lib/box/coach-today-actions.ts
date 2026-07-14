@@ -25,6 +25,20 @@ export interface CoachTodayAthlete {
   result: CoachTodayResult | null;
 }
 
+export interface CoachTodayTrial {
+  id: string;
+  name: string;
+  checked_in: boolean;
+}
+
+export interface CoachTodayDropIn {
+  id: string;
+  name: string | null;
+  email: string | null;
+  status: "pending" | "confirmed" | "cancelled";
+  checked_in: boolean;
+}
+
 export interface CoachTodayClass {
   id: string;
   name: string;
@@ -35,14 +49,20 @@ export interface CoachTodayClass {
   status: "ongoing" | "upcoming" | "finished";
   wods: CoachTodayWod[];
   athletes: CoachTodayAthlete[];
+  trials: CoachTodayTrial[];
+  dropIns: CoachTodayDropIn[];
   results_count: number;
 }
 
 export async function getCoachTodayData(boxId: string): Promise<CoachTodayClass[]> {
   const now = new Date();
-  const nowMs = now.getTime();
-  const localToday = now.toLocaleDateString("sv");
-  const localTomorrow = new Date(nowMs + 86_400_000).toLocaleDateString("sv");
+  // starts_at is stored as "local Portugal time treated as UTC" (e.g. 16:26 stored as 16:26Z).
+  // To compare correctly, derive nowMs as Portugal local time formatted as UTC.
+  const svNow = now.toLocaleString("sv", { timeZone: "Europe/Lisbon" });
+  const nowMs = new Date(svNow.replace(" ", "T") + "Z").getTime();
+  const localToday = now.toLocaleString("sv", { timeZone: "Europe/Lisbon" }).slice(0, 10);
+  const localTomorrow = new Date(now.getTime() + 86_400_000)
+    .toLocaleString("sv", { timeZone: "Europe/Lisbon" }).slice(0, 10);
 
   const { data: rawClasses } = await supabaseAdmin
     .from("classes")
@@ -63,6 +83,19 @@ export async function getCoachTodayData(boxId: string): Promise<CoachTodayClass[
     .select("id, class_id, user_id, attended, profiles(id, full_name, avatar_url)")
     .in("class_id", classIds)
     .eq("status", "confirmed");
+
+  // Trials associados às aulas de hoje
+  const { data: trialsData } = await supabaseAdmin
+    .from("trials")
+    .select("id, name, checked_in, class_id")
+    .in("class_id", classIds);
+
+  // Drop-ins associados às aulas de hoje
+  const { data: dropInsData } = await supabaseAdmin
+    .from("drop_ins")
+    .select("id, name, email, status, checked_in, class_id")
+    .in("class_id", classIds)
+    .neq("status", "cancelled");
 
   // WODs for all classes
   const allWodIds = [
@@ -104,6 +137,27 @@ export async function getCoachTodayData(boxId: string): Promise<CoachTodayClass[
     }
   }
 
+  // Group trials by class_id
+  const trialsByClass: Record<string, CoachTodayTrial[]> = {};
+  for (const t of trialsData ?? []) {
+    if (!trialsByClass[t.class_id]) trialsByClass[t.class_id] = [];
+    trialsByClass[t.class_id].push({ id: t.id, name: t.name, checked_in: t.checked_in ?? false });
+  }
+
+  // Group drop-ins by class_id
+  const dropInsByClass: Record<string, CoachTodayDropIn[]> = {};
+  for (const d of dropInsData ?? []) {
+    const classId = (d as unknown as { class_id: string }).class_id;
+    if (!dropInsByClass[classId]) dropInsByClass[classId] = [];
+    dropInsByClass[classId].push({
+      id: d.id,
+      name: d.name,
+      email: d.email,
+      status: d.status as "pending" | "confirmed" | "cancelled",
+      checked_in: d.checked_in ?? false,
+    });
+  }
+
   // Group bookings by class_id
   const bookingsByClass: Record<string, CoachTodayAthlete[]> = {};
   for (const b of bookings ?? []) {
@@ -143,6 +197,8 @@ export async function getCoachTodayData(boxId: string): Promise<CoachTodayClass[
       status,
       wods: classWods,
       athletes,
+      trials: trialsByClass[c.id] ?? [],
+      dropIns: dropInsByClass[c.id] ?? [],
       results_count: athletes.filter((a) => a.result !== null).length,
     };
   });

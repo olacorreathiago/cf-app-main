@@ -60,13 +60,23 @@ export async function getBoxOverviewData(boxId: string): Promise<BoxOverviewData
 
   const confirmedMap: Record<string, number> = {};
   if (classIds.length > 0) {
-    const { data: bookingRows } = await supabaseAdmin
-      .from("bookings")
-      .select("class_id")
-      .in("class_id", classIds)
-      .eq("status", "confirmed");
+    const [{ data: bookingRows }, { data: trialRows }] = await Promise.all([
+      supabaseAdmin
+        .from("bookings")
+        .select("class_id")
+        .in("class_id", classIds)
+        .eq("status", "confirmed"),
+      supabaseAdmin
+        .from("trials")
+        .select("class_id")
+        .in("class_id", classIds)
+        .not("status", "in", '("lost","converted")'),
+    ]);
     for (const b of bookingRows ?? []) {
       confirmedMap[b.class_id] = (confirmedMap[b.class_id] ?? 0) + 1;
+    }
+    for (const t of trialRows ?? []) {
+      if (t.class_id) confirmedMap[t.class_id] = (confirmedMap[t.class_id] ?? 0) + 1;
     }
   }
 

@@ -6,12 +6,32 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { OnboardingShell, PrimaryButton, FieldInput, GoogleButton } from "@/components/shared";
+import {
+  AuthCenteredShell,
+  AuthCard,
+  AuthField,
+  PrimaryButton,
+  GoogleButton,
+} from "@/components/shared";
 import { signInWithMagicLink, signInWithGoogle } from "@/lib/auth/actions";
 import { magicLinkSchema, type MagicLinkFormValues } from "@/schemas/auth";
-import { cn } from "@/lib/utils";
 
 type ScreenState = "idle" | "sent";
+
+const ArrowRight = (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const TermsFooter = (
+  <>
+    Ao entrar, aceitas os nossos{" "}
+    <span className="text-white/70 underline underline-offset-4">
+      termos e política de privacidade
+    </span>
+  </>
+);
 
 export function LoginScreen() {
   const searchParams = useSearchParams();
@@ -49,131 +69,121 @@ export function LoginScreen() {
   }
 
   return (
-    <OnboardingShell>
-      {/* Mobile: hero pushes form to bottom. Desktop: just the form, centered by layout. */}
-      <div className="flex flex-1 flex-col lg:justify-center lg:gap-8">
+    <AuthCenteredShell footer={TermsFooter}>
+      <AnimatePresence mode="wait">
+        {screen === "idle" ? (
+          <motion.div
+            key="form"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.22 }}
+          >
+            <AuthCard>
+              <div className="mb-6 text-center">
+                <h1 className="font-display text-3xl uppercase leading-none tracking-tight text-white">
+                  Entra na tua conta
+                </h1>
+                <p className="mt-2 text-sm text-white/55">
+                  Usa o teu email ou Google para continuar.
+                </p>
+              </div>
 
-        {/* Mobile hero */}
-        <div className="flex flex-1 flex-col justify-end pb-8 lg:hidden">
-          <p className="label-caps text-text-tertiary mb-2">Bem-vindo</p>
-          <h1 className="font-display text-[2.6rem] leading-[0.92] text-text-primary">
-            O teu treino,<br />a tua evolução.
-          </h1>
-        </div>
-
-        {/* Desktop heading */}
-        <div className="hidden lg:block space-y-1">
-          <p className="label-caps text-text-tertiary">Acesso</p>
-          <h1 className="text-2xl font-bold text-text-primary">Entra na tua conta</h1>
-          <p className="text-sm text-text-secondary">Usa o teu email ou Google para continuar.</p>
-        </div>
-
-        {/* Form */}
-        <AnimatePresence mode="wait">
-          {screen === "idle" ? (
-            <motion.div
-              key="form"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.22 }}
-              className="space-y-3"
-            >
               <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-3">
-                <FieldInput
-                  label="Email"
+                <AuthField
                   type="email"
-                  placeholder="o.teu@email.com"
+                  placeholder="oteuemail@exemplo.com"
                   autoComplete="email"
                   autoCapitalize="none"
                   inputMode="email"
+                  aria-label="Email"
                   error={form.formState.errors.email?.message}
+                  trailingIcon={
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                      <rect x="2" y="3.5" width="14" height="11" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                      <path d="M2.5 5l6.5 4.5L15.5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  }
                   {...form.register("email")}
                 />
 
                 <PrimaryButton
                   type="submit"
+                  variant="light"
+                  className="h-14"
                   loading={form.formState.isSubmitting}
-                  trailing={
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  }
+                  trailing={ArrowRight}
                 >
                   {form.formState.isSubmitting ? "A enviar..." : "Enviar link de acesso"}
                 </PrimaryButton>
               </form>
 
               {/* Divider */}
-              <div className="flex items-center gap-3">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-xs text-text-tertiary">ou</span>
-                <div className="h-px flex-1 bg-border" />
+              <div className="my-5 flex items-center gap-3">
+                <div className="h-px flex-1 bg-white/10" />
+                <span className="text-xs text-white/40">ou</span>
+                <div className="h-px flex-1 bg-white/10" />
               </div>
 
-              <GoogleButton onClick={handleGoogle} loading={googleLoading} />
-
-              <div className="pt-1 text-center">
-                <a
-                  href="/"
-                  className={cn(
-                    "text-sm text-text-tertiary underline-offset-4",
-                    "hover:text-text-secondary hover:underline",
-                    "transition-colors duration-150"
-                  )}
-                >
-                  Continuar como visitante
-                </a>
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="sent"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.22 }}
-              className="space-y-6"
-            >
-              <div className="flex justify-center">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20">
-                  <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
-                    <path d="M4.5 9A2.5 2.5 0 0 1 7 6.5h22A2.5 2.5 0 0 1 31.5 9v18A2.5 2.5 0 0 1 29 29.5H7A2.5 2.5 0 0 1 4.5 27V9Z" stroke="currentColor" strokeWidth="1.75" className="text-accent" />
-                    <path d="M4.5 9.5l13.5 10L31.5 9.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" className="text-accent" />
+              <GoogleButton
+                onClick={handleGoogle}
+                loading={googleLoading}
+                className="h-14 border-white/[0.16] bg-transparent text-white hover:border-white/30 hover:bg-white/[0.04]"
+              >
+                Continuar com o Google
+              </GoogleButton>
+            </AuthCard>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="sent"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.22 }}
+          >
+            <AuthCard>
+              <div className="flex flex-col items-center text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#3B4C99]">
+                  <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+                    <rect x="3" y="5.5" width="20" height="15" rx="2.5" stroke="#fff" strokeWidth="1.6" />
+                    <path d="M4 7l9 6.5L22 7" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </div>
-              </div>
 
-              <div className="space-y-2 text-center">
-                <h2 className="text-xl font-semibold text-text-primary">
+                <h2 className="mt-5 font-display text-2xl uppercase leading-none tracking-tight text-white">
                   Verifica o teu email
                 </h2>
-                <p className="text-sm leading-relaxed text-text-secondary">
-                  Enviámos um link de acesso para{" "}
-                  <span className="font-medium text-text-primary">{sentEmail}</span>.
+                <p className="mt-3 text-sm leading-relaxed text-white/60">
+                  Enviámos um link de acesso para
+                  <br />
+                  <span className="font-semibold text-white">{sentEmail}</span>.
                   <br />
                   Clica no link para entrar.
                 </p>
-              </div>
 
-              <div className="space-y-3">
-                <PrimaryButton
-                  variant="secondary"
-                  onClick={() => {
-                    setScreen("idle");
-                    form.reset();
-                  }}
-                >
-                  Usar outro email
-                </PrimaryButton>
-                <p className="text-center text-xs text-text-tertiary">
-                  Não encontras o email? Verifica a pasta de spam.
-                </p>
+                <div className="mt-7 w-full">
+                  <PrimaryButton
+                    variant="light"
+                    className="h-14"
+                    onClick={() => {
+                      setScreen("idle");
+                      form.reset();
+                    }}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M13 8H3M7 4L3 8l4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Utilizar outro email
+                    </span>
+                  </PrimaryButton>
+                </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </OnboardingShell>
+            </AuthCard>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </AuthCenteredShell>
   );
 }

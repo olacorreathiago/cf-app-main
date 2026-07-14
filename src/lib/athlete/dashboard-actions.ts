@@ -1,6 +1,7 @@
 "use server";
 
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { fetchWodsForClasses } from "./classes-actions";
@@ -179,6 +180,19 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
       waitlist: row.waitlist_count ?? 0,
     };
   }
+  if (classIds.length > 0) {
+    const { data: trialRows } = await supabaseAdmin
+      .from("trials")
+      .select("class_id")
+      .in("class_id", classIds)
+      .not("status", "in", '("lost","converted")');
+    for (const t of trialRows ?? []) {
+      if (t.class_id) {
+        if (!countMap[t.class_id]) countMap[t.class_id] = { confirmed: 0, waitlist: 0 };
+        countMap[t.class_id].confirmed += 1;
+      }
+    }
+  }
 
   // User's own bookings for today
   const { data: myBookings } = classIds.length > 0
@@ -321,6 +335,19 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
   const upcomingCountMap: Record<string, { confirmed: number; waitlist: number }> = {};
   for (const row of upcomingCountRows ?? []) {
     upcomingCountMap[row.class_id] = { confirmed: row.confirmed_count ?? 0, waitlist: row.waitlist_count ?? 0 };
+  }
+  if (upcomingClassIds.length > 0) {
+    const { data: upcomingTrialRows } = await supabaseAdmin
+      .from("trials")
+      .select("class_id")
+      .in("class_id", upcomingClassIds)
+      .not("status", "in", '("lost","converted")');
+    for (const t of upcomingTrialRows ?? []) {
+      if (t.class_id) {
+        if (!upcomingCountMap[t.class_id]) upcomingCountMap[t.class_id] = { confirmed: 0, waitlist: 0 };
+        upcomingCountMap[t.class_id].confirmed += 1;
+      }
+    }
   }
   const { data: upcomingBookings } = upcomingClassIds.length > 0
     ? await supabase.from("bookings").select("class_id, status").eq("user_id", user.id).in("class_id", upcomingClassIds)

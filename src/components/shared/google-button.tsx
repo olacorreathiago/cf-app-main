@@ -10,7 +10,7 @@ export function GoogleButton({ loading, className, children, disabled, ...props 
       disabled={disabled || loading}
       className={cn(
         "inline-flex w-full items-center justify-center gap-3",
-        "h-12 rounded-full px-6",
+        "h-12 rounded-2xl px-6",
         "bg-bg-card text-text-primary font-medium text-base",
         "border border-border",
         "outline-none select-none",

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
@@ -5,14 +6,18 @@ import { getCoachTodayData } from "@/lib/box/coach-today-actions";
 import { ClassCardClient } from "./class-card-client";
 import { RefreshButton } from "./refresh-button";
 
+export const metadata: Metadata = { title: "Hoje" };
+
 export const revalidate = 0;
 
 interface Props {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ open?: string }>;
 }
 
-export default async function CoachTodayPage({ params }: Props) {
+export default async function CoachTodayPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const { open: openClassId } = await searchParams;
   const supabase = await supabaseServer();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -82,7 +87,14 @@ export default async function CoachTodayPage({ params }: Props) {
       ) : (
         <div className="space-y-4">
           {classes.map((cls) => (
-            <ClassCardClient key={cls.id} cls={cls} slug={slug} boxId={box.id} coaches={coaches} />
+            <ClassCardClient
+              key={cls.id}
+              cls={cls}
+              slug={slug}
+              boxId={box.id}
+              coaches={coaches}
+              autoOpenCheckIn={openClassId === cls.id}
+            />
           ))}
         </div>
       )}

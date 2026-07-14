@@ -11,9 +11,9 @@
 ============================================================================= */
 
 :root {
-  /* Accent */
-  --color-accent:            #C8FF00;
-  --color-accent-hover:      #B0E000;
+  /* Accent — Zekko gold */
+  --color-accent:            #F0B417;
+  --color-accent-hover:      #D89E0A;
   --color-accent-fg:         #0A0A0A;   /* text on accent backgrounds */
 
   /* Surfaces — Light mode */
@@ -327,4 +327,11 @@
   font-feature-settings: "liga";
   -webkit-font-smoothing: antialiased;
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+.filter-page{
+  background-image: url('/textures/zekko-filter.webp');
+  z-index: 999999;
+  opacity: .5;
+  mix-blend-mode: difference;
 }

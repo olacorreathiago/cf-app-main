@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { getAthletePrsData } from "@/lib/athlete/prs-actions";
 import { PrsClient } from "./prs-client";
+
+export const metadata: Metadata = { title: "PRs" };
 
 export default async function AthletePrsPage() {
   const data = await getAthletePrsData();

@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { getAthleteWeekClasses } from "@/lib/athlete/classes-actions";
 import { ClassesClient } from "./classes-client";
 import { format, startOfWeek, addWeeks, addDays } from "date-fns";
 import { pt } from "date-fns/locale";
 import Link from "next/link";
+
+export const metadata: Metadata = { title: "Aulas" };
 
 interface Props {
   searchParams: Promise<{ week?: string }>;

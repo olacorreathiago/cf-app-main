@@ -2,6 +2,8 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BoxSidebar, BoxNav } from "./box-nav";
+import { NotificationBell } from "@/components/shared/notification-bell";
+import { getUnreadCount, listNotifications, getPreferences } from "@/lib/notifications/queries";
 
 interface Props {
   children: React.ReactNode;
@@ -122,6 +124,12 @@ export default async function BoxLayout({ children, params }: Props) {
   };
   const completion = getProfileCompletion(profile);
 
+  const [notifUnread, notifList, notifPrefs] = await Promise.all([
+    getUnreadCount(user.id, box.id),
+    listNotifications(box.id),
+    getPreferences(user.id, box.id),
+  ]);
+
   return (
     <div className="flex h-[100svh] bg-bg-base text-foreground">
 
@@ -169,16 +177,14 @@ export default async function BoxLayout({ children, params }: Props) {
 
           {/* Right actions */}
           <div className="flex items-center gap-3">
-            {/* Notifications (future) */}
-            <button
-              disabled
-              title="Notificações (em breve)"
-              className="flex h-8 w-8 cursor-not-allowed items-center justify-center rounded-lg text-text-tertiary opacity-40"
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path d="M8 2a5 5 0 015 5v2.5l1 1.5H2l1-1.5V7a5 5 0 015-5zM6.5 13a1.5 1.5 0 003 0" stroke="currentColor" strokeWidth="1.35" strokeLinejoin="round" />
-              </svg>
-            </button>
+            {/* Notifications */}
+            <NotificationBell
+              boxId={box.id}
+              slug={slug}
+              initialUnread={notifUnread}
+              initialNotifications={notifList}
+              initialPrefs={notifPrefs}
+            />
 
             {/* Profile avatar with completion ring */}
             <ProfileAvatar profile={profile} completion={completion} />

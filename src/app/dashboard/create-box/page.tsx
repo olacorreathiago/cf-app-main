@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { CreateBoxScreen } from "./create-box-screen";
+
+export const metadata: Metadata = { title: "Criar Box" };
 
 export default async function CreateBoxPage() {
   const supabase = await supabaseServer();

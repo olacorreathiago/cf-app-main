@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { getAthleteResultsCalendar } from "@/lib/athlete/results-actions";
 import { ResultsCalendar } from "./results-calendar";
+
+export const metadata: Metadata = { title: "Resultados" };
 
 export default async function AthleteResultsPage() {
   const now = new Date();

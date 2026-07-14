@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { getFeedPosts } from "@/lib/athlete/feed-actions";
 import { FeedClient } from "./feed-client";
 import Link from "next/link";
+
+export const metadata: Metadata = { title: "Feed" };
 
 export const revalidate = 60;
 

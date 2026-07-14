@@ -12,6 +12,8 @@ import {
   removeAthleteTodayClass,
   type AvailableMember,
 } from "@/lib/box/today-actions";
+import { checkInTrial } from "@/lib/box/trial-actions";
+import { checkInDropIn, confirmDropIn, cancelDropIn } from "@/lib/box/drop-in-actions";
 import { updateClass } from "@/lib/box/classes-actions";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -226,9 +228,10 @@ interface Props {
   slug: string;
   boxId: string;
   coaches: Coach[];
+  autoOpenCheckIn?: boolean;
 }
 
-export function ClassCardClient({ cls, slug, boxId, coaches }: Props) {
+export function ClassCardClient({ cls, slug, boxId, coaches, autoOpenCheckIn }: Props) {
   const isOngoing = cls.status === "ongoing";
   const isFinished = cls.status === "finished";
   const canCheckIn = isOngoing || isFinished;
@@ -237,9 +240,12 @@ export function ClassCardClient({ cls, slug, boxId, coaches }: Props) {
   const [optimisticAttended, setOptimisticAttended] = useState<
     Record<string, boolean | null | undefined>
   >({});
+  const [optimisticTrialCheckin, setOptimisticTrialCheckin] = useState<Record<string, boolean>>({});
+  const [optimisticDropInCheckin, setOptimisticDropInCheckin] = useState<Record<string, boolean>>({});
+  const [optimisticDropInStatus, setOptimisticDropInStatus] = useState<Record<string, "pending" | "confirmed" | "cancelled">>({});
 
   // Drawers
-  const [checkInOpen, setCheckInOpen] = useState(false);
+  const [checkInOpen, setCheckInOpen] = useState(autoOpenCheckIn ?? false);
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
@@ -258,6 +264,52 @@ export function ClassCardClient({ cls, slug, boxId, coaches }: Props) {
   const [pending, startTransition] = useTransition();
 
   // ── Actions ────────────────────────────────────────────────────────────────
+
+  function handleTrialCheckIn(trialId: string, newCheckedIn: boolean) {
+    setOptimisticTrialCheckin((prev) => ({ ...prev, [trialId]: newCheckedIn }));
+    startTransition(async () => {
+      const result = await checkInTrial(trialId, newCheckedIn, slug);
+      if (result.error) {
+        toast.error("Erro ao registar presença do trial");
+        setOptimisticTrialCheckin((prev) => ({ ...prev, [trialId]: !newCheckedIn }));
+      }
+    });
+  }
+
+  function handleDropInCheckIn(dropInId: string, newCheckedIn: boolean) {
+    setOptimisticDropInCheckin((prev) => ({ ...prev, [dropInId]: newCheckedIn }));
+    startTransition(async () => {
+      const result = await checkInDropIn(dropInId, newCheckedIn, slug);
+      if (result.error) {
+        toast.error("Erro ao registar presença do drop-in");
+        setOptimisticDropInCheckin((prev) => ({ ...prev, [dropInId]: !newCheckedIn }));
+      }
+    });
+  }
+
+  function handleDropInConfirm(dropInId: string) {
+    setOptimisticDropInStatus((prev) => ({ ...prev, [dropInId]: "confirmed" }));
+    startTransition(async () => {
+      const result = await confirmDropIn(dropInId, boxId, slug);
+      if (result.error) {
+        toast.error(result.error);
+        setOptimisticDropInStatus((prev) => ({ ...prev, [dropInId]: "pending" }));
+      } else {
+        toast.success("Drop-in confirmado.");
+      }
+    });
+  }
+
+  function handleDropInCancel(dropInId: string) {
+    setOptimisticDropInStatus((prev) => ({ ...prev, [dropInId]: "cancelled" }));
+    startTransition(async () => {
+      const result = await cancelDropIn(dropInId, boxId, slug);
+      if (result.error) {
+        toast.error(result.error);
+        setOptimisticDropInStatus((prev) => ({ ...prev, [dropInId]: "pending" }));
+      }
+    });
+  }
 
   function handleCheckIn(bookingId: string, athleteId: string, newAttended: boolean | null) {
     setOptimisticAttended((prev) => ({ ...prev, [athleteId]: newAttended }));
@@ -422,7 +474,7 @@ export function ClassCardClient({ cls, slug, boxId, coaches }: Props) {
         title="Inscritos"
         subtitle={`${cls.name} · ${formatTime(cls.starts_at)}`}
       >
-        {cls.athletes.length === 0 ? (
+        {cls.athletes.length === 0 && cls.trials.length === 0 && cls.dropIns.length === 0 ? (
           <p className="text-sm text-text-tertiary">Nenhum atleta inscrito.</p>
         ) : (
           <div className="space-y-1">
@@ -531,6 +583,102 @@ export function ClassCardClient({ cls, slug, boxId, coaches }: Props) {
                 );
               })}
             </div>
+            {/* Trials */}
+            {cls.trials.length > 0 && (
+              <div className="mt-4 space-y-1">
+                <p className="px-1 text-[10px] font-semibold uppercase tracking-widest text-text-tertiary/60 mb-2">
+                  Trials · {cls.trials.length}
+                </p>
+                <div className="rounded-2xl border border-border bg-bg-card divide-y divide-border overflow-hidden">
+                  {cls.trials.map((trial) => {
+                    const checkedIn = optimisticTrialCheckin[trial.id] ?? trial.checked_in;
+                    return (
+                      <div key={trial.id} className="flex items-center gap-3 px-4 py-3">
+                        <div className="h-9 w-9 rounded-full bg-accent/10 flex items-center justify-center text-sm font-semibold text-accent shrink-0">
+                          {trial.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-text-primary truncate">{trial.name}</p>
+                          <span className="text-[10px] font-medium text-accent/70 bg-accent/10 rounded-full px-2 py-0.5">Trial</span>
+                        </div>
+                        <CheckInToggle
+                          attended={checkedIn ? true : null}
+                          disabled={!canCheckIn || pending}
+                          onToggle={() => handleTrialCheckIn(trial.id, !checkedIn)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Drop-ins */}
+            {cls.dropIns.length > 0 && (
+              <div className="mt-4 space-y-1">
+                <p className="px-1 text-[10px] font-semibold uppercase tracking-widest text-text-tertiary/60 mb-2">
+                  Drop-ins · {cls.dropIns.filter((d) => (optimisticDropInStatus[d.id] ?? d.status) !== "cancelled").length}
+                </p>
+                <div className="rounded-2xl border border-border bg-bg-card divide-y divide-border overflow-hidden">
+                  {cls.dropIns.map((dropIn) => {
+                    const status = optimisticDropInStatus[dropIn.id] ?? dropIn.status;
+                    const checkedIn = optimisticDropInCheckin[dropIn.id] ?? dropIn.checked_in;
+                    const displayName = dropIn.name ?? dropIn.email ?? "Drop-in";
+                    if (status === "cancelled") return null;
+                    return (
+                      <div key={dropIn.id} className="flex items-center gap-3 px-4 py-3">
+                        <div className="h-9 w-9 rounded-full bg-blue-500/10 flex items-center justify-center text-sm font-semibold text-blue-500 shrink-0">
+                          {displayName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-text-primary truncate">{displayName}</p>
+                          <span className={cn(
+                            "text-[10px] font-medium rounded-full px-2 py-0.5",
+                            status === "pending"
+                              ? "bg-warning/10 text-warning"
+                              : "bg-blue-500/10 text-blue-500"
+                          )}>
+                            {status === "pending" ? "Pendente" : "Drop-in"}
+                          </span>
+                        </div>
+                        {status === "pending" ? (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              disabled={pending}
+                              onClick={() => handleDropInConfirm(dropIn.id)}
+                              title="Confirmar drop-in"
+                              className="flex h-9 w-9 items-center justify-center rounded-full bg-success/10 text-success transition-colors hover:bg-success/20 disabled:opacity-40"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                <path d="M2 7l3.5 3.5L12 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={pending}
+                              onClick={() => handleDropInCancel(dropIn.id)}
+                              title="Recusar drop-in"
+                              className="flex h-9 w-9 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-error/10 hover:text-error disabled:opacity-40"
+                            >
+                              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                                <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                              </svg>
+                            </button>
+                          </div>
+                        ) : (
+                          <CheckInToggle
+                            attended={checkedIn ? true : null}
+                            disabled={!canCheckIn || pending}
+                            onToggle={() => handleDropInCheckIn(dropIn.id, !checkedIn)}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Drawer>

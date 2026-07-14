@@ -3,6 +3,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { notifyWaitlistPromoted, notifyAthleteRemoved } from "@/lib/notifications/send";
 
 export interface RosterAttendee {
   booking_id: string;
@@ -11,6 +12,8 @@ export interface RosterAttendee {
   nickname: string | null;
   avatar_url: string | null;
   status: "confirmed" | "waitlist";
+  attended: boolean | null;
+  checked_in_at: string | null;
 }
 
 export interface BoxMemberOption {
@@ -20,9 +23,15 @@ export interface BoxMemberOption {
   avatar_url: string | null;
 }
 
+export interface TrialRosterEntry {
+  id: string;
+  name: string;
+}
+
 export interface ClassRoster {
   attendees: RosterAttendee[];
   availableMembers: BoxMemberOption[];
+  trials: TrialRosterEntry[];
 }
 
 export async function getClassRoster(classId: string, boxId: string): Promise<ClassRoster> {
@@ -31,7 +40,7 @@ export async function getClassRoster(classId: string, boxId: string): Promise<Cl
   // Current bookings (confirmed + waitlist)
   const { data: bookings } = await supabase
     .from("bookings")
-    .select("id, user_id, status, profiles(full_name, nickname, avatar_url)")
+    .select("id, user_id, status, attended, checked_in_at, profiles(full_name, nickname, avatar_url)")
     .eq("class_id", classId)
     .in("status", ["confirmed", "waitlist"])
     .order("created_at");
@@ -45,6 +54,8 @@ export async function getClassRoster(classId: string, boxId: string): Promise<Cl
       nickname: p?.nickname ?? null,
       avatar_url: p?.avatar_url ?? null,
       status: b.status as "confirmed" | "waitlist",
+      attended: (b as unknown as { attended: boolean | null }).attended ?? null,
+      checked_in_at: (b as unknown as { checked_in_at: string | null }).checked_in_at ?? null,
     };
   });
 
@@ -70,7 +81,15 @@ export async function getClassRoster(classId: string, boxId: string): Promise<Cl
       };
     });
 
-  return { attendees, availableMembers };
+  // Trials associados a esta aula
+  const { data: trialsData } = await supabaseAdmin
+    .from("trials")
+    .select("id, name")
+    .eq("class_id", classId);
+
+  const trials: TrialRosterEntry[] = (trialsData ?? []).map((t) => ({ id: t.id, name: t.name }));
+
+  return { attendees, availableMembers, trials };
 }
 
 export async function addAthleteToClass(
@@ -169,10 +188,10 @@ export async function removeAthleteFromClass(
       .eq("box_id", boxId);
   }
 
-  // Fetch current status before cancelling to decide on waitlist promotion
+  // Fetch current status + removed athlete info before cancelling
   const { data: booking } = await supabase
     .from("bookings")
-    .select("status")
+    .select("status, user_id, classes(name, starts_at, box_id, boxes(name))")
     .eq("id", bookingId)
     .maybeSingle();
 
@@ -183,11 +202,33 @@ export async function removeAthleteFromClass(
 
   if (error) return { error: "Erro ao remover atleta." };
 
+  // Notify the removed athlete
+  if (booking?.user_id) {
+    const cls = booking.classes as unknown as { name: string; starts_at: string; box_id: string; boxes: { name: string } | null } | null;
+    if (cls) {
+      const { data: removedProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("email")
+        .eq("id", booking.user_id)
+        .maybeSingle();
+      if (removedProfile?.email) {
+        await notifyAthleteRemoved({
+          userId: booking.user_id,
+          email: removedProfile.email,
+          boxId,
+          boxName: cls.boxes?.name ?? "",
+          className: cls.name,
+          startsAt: cls.starts_at,
+        });
+      }
+    }
+  }
+
   // Promote first waitlisted athlete when a confirmed spot is freed
   if (booking?.status === "confirmed" && opts?.classId) {
     const { data: next } = await supabase
       .from("bookings")
-      .select("id")
+      .select("id, user_id, classes(name, starts_at, box_id, boxes(name))")
       .eq("class_id", opts.classId)
       .eq("status", "waitlist")
       .order("created_at", { ascending: true })
@@ -199,6 +240,26 @@ export async function removeAthleteFromClass(
         .from("bookings")
         .update({ status: "confirmed" })
         .eq("id", next.id);
+
+      // Notify the promoted athlete
+      const cls = next.classes as unknown as { name: string; starts_at: string; box_id: string; boxes: { name: string } | null } | null;
+      if (cls) {
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("email")
+          .eq("id", next.user_id)
+          .maybeSingle();
+        if (profile?.email) {
+          await notifyWaitlistPromoted({
+            userId: next.user_id,
+            email: profile.email,
+            boxId: cls.box_id,
+            boxName: cls.boxes?.name ?? "",
+            className: cls.name,
+            startsAt: cls.starts_at,
+          });
+        }
+      }
     }
   }
 

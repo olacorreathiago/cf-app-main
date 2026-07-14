@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { WeeklyGrid } from "./weekly-grid";
 import type { ClassTemplate, BoxSettings } from "@/types";
+
+export const metadata: Metadata = { title: "Horário" };
 
 interface Props {
   params: Promise<{ slug: string }>;

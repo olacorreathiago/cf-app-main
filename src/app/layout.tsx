@@ -20,19 +20,19 @@ const bodyFont = Roboto_Flex({
 
 export const metadata: Metadata = {
   title: {
-    default: "CrossFit App",
-    template: "%s · CrossFit App",
+    default: "Zekko",
+    template: "%s · Zekko",
   },
-  description: "Plataforma de gestão para boxes de CrossFit.",
-  applicationName: "CrossFit App",
+  description: "Zekko — gestão completa para boxes de CrossFit. Aulas, WODs, métricas e comunidade.",
+  applicationName: "Zekko",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
   },
   icons: {
-    icon: "/icons/icon.svg",
-    apple: "/icons/icon.svg",
+    icon: "/icons/favicon.png",
+    apple: "/icons/favicon.png",
     other: [{ rel: "mask-icon", url: "/icons/icon-maskable.svg", color: "#0A0A0A" }],
   },
 };

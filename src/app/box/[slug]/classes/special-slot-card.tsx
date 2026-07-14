@@ -4,9 +4,9 @@ import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { assignSpecialClassWod, publishClass, cancelClass } from "@/lib/box/classes-actions";
+import { assignSpecialClassWod, publishClass, deleteSpecialClass } from "@/lib/box/classes-actions";
 import { getClassRoster, addAthleteToClass, removeAthleteFromClass, getAthleteClassResultCount } from "@/lib/box/roster-actions";
-import type { RosterAttendee, BoxMemberOption } from "@/lib/box/roster-actions";
+import type { RosterAttendee, BoxMemberOption, TrialRosterEntry } from "@/lib/box/roster-actions";
 import { PrimaryButton, FieldInput } from "@/components/shared";
 import { cn } from "@/lib/utils";
 import type { ClassInstance, Wod } from "@/types";
@@ -42,7 +42,7 @@ const TYPE_COLORS: Record<string, string> = {
   Custom:     "bg-border/60 text-text-secondary border-border",
 };
 
-type DrawerType = "publish" | "cancel" | "athletes" | "wods" | null;
+type DrawerType = "publish" | "athletes" | "wods" | null;
 
 function Drawer({ open, onClose, title, subtitle, children }: {
   open: boolean; onClose: () => void; title: string; subtitle?: string; children: React.ReactNode;
@@ -114,6 +114,7 @@ export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, pub
   // Athletes drawer state
   const [attendees, setAttendees] = useState<RosterAttendee[]>([]);
   const [availableMembers, setAvailableMembers] = useState<BoxMemberOption[]>([]);
+  const [trials, setTrials] = useState<TrialRosterEntry[]>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
   const [rosterPending, startRosterTransition] = useTransition();
@@ -125,7 +126,7 @@ export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, pub
   const defaultCoach = cls.coach_id ?? (coaches.find((c) => c.id === ownerProfileId) ? (ownerProfileId ?? "") : "");
   const [coachId, setCoachId] = useState(defaultCoach);
   const [capacity, setCapacity] = useState(String(cls.capacity));
-  const [reason, setReason] = useState("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const time = cls.starts_at.slice(11, 16);
   const date = cls.starts_at.slice(0, 10);
@@ -134,9 +135,10 @@ export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, pub
     setDrawer("athletes");
     setMemberSearch("");
     setRosterLoading(true);
-    getClassRoster(cls.id, boxId).then(({ attendees, availableMembers }) => {
+    getClassRoster(cls.id, boxId).then(({ attendees, availableMembers, trials }) => {
       setAttendees(attendees);
       setAvailableMembers(availableMembers);
+      setTrials(trials);
       setRosterLoading(false);
     });
   }
@@ -146,9 +148,10 @@ export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, pub
       const res = await addAthleteToClass(cls.id, userId, boxId, slug);
       if (res.error) { toast.error(res.error); return; }
       setMemberSearch("");
-      const { attendees: fresh, availableMembers: freshMembers } = await getClassRoster(cls.id, boxId);
+      const { attendees: fresh, availableMembers: freshMembers, trials: freshTrials } = await getClassRoster(cls.id, boxId);
       setAttendees(fresh);
       setAvailableMembers(freshMembers);
+      setTrials(freshTrials);
       toast.success("Atleta adicionado");
     });
   }
@@ -192,12 +195,11 @@ export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, pub
     });
   }
 
-  function handleCancel() {
-    if (!reason.trim()) { toast.error("Indica o motivo"); return; }
+  function handleDelete() {
     startTransition(async () => {
-      const result = await cancelClass(cls.id, boxId, { cancellation_reason: reason });
+      const result = await deleteSpecialClass(cls.id, boxId);
       if (result.error) toast.error(result.error);
-      else { toast.success("Aula cancelada"); setDrawer(null); setReason(""); }
+      else { toast.success("Aula eliminada"); setDeleteConfirmOpen(false); }
     });
   }
 
@@ -294,9 +296,9 @@ export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, pub
                 className="rounded-lg border border-border bg-bg-input px-2.5 py-1 text-xs font-medium text-text-secondary hover:border-accent/40 hover:text-text-primary transition-colors">
                 {currentWodIds.length > 0 ? "Editar WODs" : "Adicionar WOD"}
               </button>
-              <button onClick={() => { setReason(""); setDrawer("cancel"); }}
+              <button onClick={() => setDeleteConfirmOpen(true)}
                 className="rounded-lg px-2 py-1 text-xs text-text-tertiary hover:text-red-500 transition-colors"
-                title="Cancelar aula">
+                title="Eliminar aula">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                   <path d="M2 2l8 8M10 2L2 10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                 </svg>
@@ -408,24 +410,30 @@ export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, pub
         </div>
       </Drawer>
 
-      {/* Cancel drawer */}
-      <Drawer open={drawer === "cancel"} onClose={() => setDrawer(null)}
-        title="Cancelar aula" subtitle={`${cls.name} · ${time}`}>
-        <div className="space-y-5">
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium text-text-secondary">Motivo do cancelamento</p>
-            <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={4}
-              placeholder="ex: Coach indisponível, manutenção do espaço…"
-              className="w-full rounded-xl border border-border bg-bg-input px-4 py-3.5 text-base text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
+      {/* Delete confirmation dialog */}
+      {deleteConfirmOpen && createPortal(
+        <>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" style={{ zIndex: 9998 }} onClick={() => setDeleteConfirmOpen(false)} />
+          <div className="fixed left-1/2 top-1/2 w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-bg-base p-6 shadow-xl" style={{ zIndex: 9999 }}>
+            <h3 className="font-semibold text-text-primary mb-2">Eliminar {cls.name}?</h3>
+            <p className="text-sm text-text-secondary mb-1">
+              A aula e todas as inscrições associadas serão permanentemente eliminadas.
+            </p>
+            <p className="text-sm text-red-500 mb-5">Esta ação não pode ser desfeita.</p>
+            <div className="flex gap-2">
+              <button onClick={handleDelete} disabled={pending}
+                className="flex-1 rounded-xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-600 transition-colors disabled:opacity-50">
+                {pending ? "A eliminar…" : "Eliminar"}
+              </button>
+              <button onClick={() => setDeleteConfirmOpen(false)} disabled={pending}
+                className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors">
+                Cancelar
+              </button>
+            </div>
           </div>
-          <div className="space-y-2">
-            <PrimaryButton loading={pending} onClick={handleCancel} className="bg-red-500 hover:bg-red-600 disabled:bg-red-300">
-              Confirmar cancelamento
-            </PrimaryButton>
-            <PrimaryButton variant="secondary" onClick={() => setDrawer(null)}>Voltar</PrimaryButton>
-          </div>
-        </div>
-      </Drawer>
+        </>,
+        document.body
+      )}
 
       {/* Athletes drawer */}
       <Drawer open={drawer === "athletes"} onClose={() => setDrawer(null)}
@@ -456,7 +464,7 @@ export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, pub
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-text-secondary">Inscritos</p>
-              {!rosterLoading && <span className="text-xs text-text-tertiary">{attendees.length} / {cls.capacity}</span>}
+              {!rosterLoading && <span className="text-xs text-text-tertiary">{attendees.length + trials.length} / {cls.capacity}</span>}
             </div>
             {rosterLoading ? (
               <div className="space-y-2">
@@ -492,6 +500,24 @@ export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, pub
               </div>
             )}
           </div>
+          {/* Trials */}
+          {trials.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-text-secondary">Trials</p>
+              <div className="rounded-xl border border-border bg-bg-card divide-y divide-border overflow-hidden">
+                {trials.map((t) => (
+                  <div key={t.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold text-accent">
+                      {t.name.charAt(0).toUpperCase()}
+                    </div>
+                    <p className="flex-1 text-sm text-text-primary truncate">{t.name}</p>
+                    <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">Trial</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <PrimaryButton variant="secondary" onClick={() => setDrawer(null)}>Fechar</PrimaryButton>
         </div>
       </Drawer>

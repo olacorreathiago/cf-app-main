@@ -1,4 +1,7 @@
-// Fase 2 — Public box directory (SEO, approved boxes only)
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Boxes" };
+
 export default function BoxesDirectoryPage() {
   return (
     <main className="p-4">

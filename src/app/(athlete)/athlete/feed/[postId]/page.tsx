@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { getPostById } from "@/lib/athlete/feed-actions";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { PostDetailClient } from "./post-detail-client";
+
+export const metadata: Metadata = { title: "Post" };
 
 interface Props {
   params: Promise<{ postId: string }>;

@@ -22,7 +22,7 @@ interface Props {
   coaches: Coach[];
   ownerProfileId: string | null;
   publishedWods: Wod[];
-  selectMode?: boolean;
+  selectMode?: "publish" | "edit";
   selectedSlots?: Set<string>;
   onToggleSlot?: (startsAt: string) => void;
 }

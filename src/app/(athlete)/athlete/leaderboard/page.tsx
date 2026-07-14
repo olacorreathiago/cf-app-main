@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { getAthleteLeaderboardData } from "@/lib/athlete/leaderboard-actions";
 import { LeaderboardClient } from "./leaderboard-client";
+
+export const metadata: Metadata = { title: "Leaderboard" };
 
 export default async function AthleteLeaderboardPage() {
   const data = await getAthleteLeaderboardData();

@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { getAthleteDashboardData } from "@/lib/athlete/dashboard-actions";
 import type { AthleteDashboardPr } from "@/lib/athlete/dashboard-actions";
+
+export const metadata: Metadata = { title: "Início" };
 import { ClassCard } from "@/components/athlete/class-card";
 import { WodCard } from "@/components/athlete/wod-card";
 import { FeedPreview } from "@/components/athlete/feed-preview";

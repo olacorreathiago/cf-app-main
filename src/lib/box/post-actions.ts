@@ -3,6 +3,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { notifyNewPost } from "@/lib/notifications/send";
 
 export type PostType = "post" | "recado";
 
@@ -73,16 +74,45 @@ export async function createPost(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Não autenticado" };
 
-  const { error } = await supabaseAdmin.from("box_posts").insert({
-    box_id: boxId,
-    author_id: user.id,
-    type: data.type,
-    body: data.body?.trim() || null,
-    image_url: data.image_url?.trim() || null,
-    pinned: false,
-  });
+  const { data: inserted, error } = await supabaseAdmin
+    .from("box_posts")
+    .insert({
+      box_id: boxId,
+      author_id: user.id,
+      type: data.type,
+      body: data.body?.trim() || null,
+      image_url: data.image_url?.trim() || null,
+      pinned: false,
+    })
+    .select("id")
+    .single();
 
   if (error) return { error: "Erro ao publicar." };
+
+  // Notify all active athletes (skip the author)
+  const { data: members } = await supabaseAdmin
+    .from("memberships")
+    .select("user_id")
+    .eq("box_id", boxId)
+    .eq("status", "active")
+    .neq("user_id", user.id);
+
+  if (members?.length && inserted) {
+    const title = data.type === "recado" ? "Novo recado da box" : "Nova publicação da box";
+    const excerpt = data.body?.trim().slice(0, 100) ?? undefined;
+    await Promise.allSettled(
+      members.map((m) =>
+        notifyNewPost({
+          userId: m.user_id,
+          boxId,
+          boxName: slug,
+          postId: inserted.id,
+          postTitle: title,
+          postExcerpt: excerpt,
+        })
+      )
+    );
+  }
 
   revalidatePath(`/box/${slug}/posts`);
   revalidatePath("/athlete");

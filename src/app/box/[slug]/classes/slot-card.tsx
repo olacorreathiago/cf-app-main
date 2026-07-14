@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { ensureInstance, publishClass, cancelClass, updateClass } from "@/lib/box/classes-actions";
 import { getClassRoster, addAthleteToClass, removeAthleteFromClass, getAthleteClassResultCount } from "@/lib/box/roster-actions";
-import type { RosterAttendee, BoxMemberOption } from "@/lib/box/roster-actions";
+import { checkInAthlete } from "@/lib/box/today-actions";
+import type { RosterAttendee, BoxMemberOption, TrialRosterEntry } from "@/lib/box/roster-actions";
 import { PrimaryButton, FieldInput } from "@/components/shared";
 import { cn } from "@/lib/utils";
 import type { ClassInstance, ClassTemplate } from "@/types";
@@ -34,7 +35,7 @@ interface Props {
   slug: string;
   coaches: Coach[];
   ownerProfileId: string | null;
-  selectMode?: boolean;
+  selectMode?: "publish" | "edit";
   isSelected?: boolean;
   onToggleSelect?: () => void;
 }
@@ -130,6 +131,7 @@ export function SlotCard({ slot, boxId, slug, coaches, ownerProfileId, selectMod
   // Athletes drawer state
   const [attendees, setAttendees] = useState<RosterAttendee[]>([]);
   const [availableMembers, setAvailableMembers] = useState<BoxMemberOption[]>([]);
+  const [trials, setTrials] = useState<TrialRosterEntry[]>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
   const [rosterPending, startRosterTransition] = useTransition();
@@ -138,15 +140,21 @@ export function SlotCard({ slot, boxId, slug, coaches, ownerProfileId, selectMod
   type RemovePending = { bookingId: string; userId: string; name: string; resultCount: number };
   const [removePending, setRemovePending] = useState<RemovePending | null>(null);
 
+  // Optimistic check-in state: bookingId -> attended value
+  const [optimisticAttended, setOptimisticAttended] = useState<Record<string, boolean | null>>({});
+
+  const classStarted = slot.instance ? new Date(slot.instance.starts_at) <= new Date() : false;
+
   function openAthletesDrawer() {
     setDrawer("athletes");
     setMemberSearch("");
     setRosterLoading(true);
     const classId = slot.instance?.id;
     if (!classId) { setRosterLoading(false); return; }
-    getClassRoster(classId, boxId).then(({ attendees, availableMembers }) => {
+    getClassRoster(classId, boxId).then(({ attendees, availableMembers, trials }) => {
       setAttendees(attendees);
       setAvailableMembers(availableMembers);
+      setTrials(trials);
       setRosterLoading(false);
     });
   }
@@ -158,9 +166,10 @@ export function SlotCard({ slot, boxId, slug, coaches, ownerProfileId, selectMod
       const res = await addAthleteToClass(classId, userId, boxId, slug);
       if (res.error) { toast.error(res.error); return; }
       setMemberSearch("");
-      const { attendees: fresh, availableMembers: freshMembers } = await getClassRoster(classId, boxId);
+      const { attendees: fresh, availableMembers: freshMembers, trials: freshTrials } = await getClassRoster(classId, boxId);
       setAttendees(fresh);
       setAvailableMembers(freshMembers);
+      setTrials(freshTrials);
       toast.success("Atleta adicionado");
     });
   }
@@ -174,6 +183,18 @@ export function SlotCard({ slot, boxId, slug, coaches, ownerProfileId, selectMod
         ? await getAthleteClassResultCount(classId, userId, boxId)
         : { count: 0 };
       setRemovePending({ bookingId, userId, name, resultCount: count });
+    });
+  }
+
+  function handleCheckIn(bookingId: string, currentAttended: boolean | null) {
+    const newAttended = currentAttended === true ? null : true;
+    setOptimisticAttended((prev) => ({ ...prev, [bookingId]: newAttended }));
+    startRosterTransition(async () => {
+      const res = await checkInAthlete(bookingId, newAttended, slug);
+      if (res.error) {
+        toast.error(res.error);
+        setOptimisticAttended((prev) => ({ ...prev, [bookingId]: currentAttended }));
+      }
     });
   }
 
@@ -268,8 +289,9 @@ export function SlotCard({ slot, boxId, slug, coaches, ownerProfileId, selectMod
     });
   }
 
-  // Select mode: only draft slots are selectable
-  const isSelectable = selectMode && status === "draft";
+  const isSelectable =
+    (selectMode === "publish" && status === "draft") ||
+    (selectMode === "edit" && status === "scheduled");
 
   return (
     <>
@@ -597,7 +619,7 @@ export function SlotCard({ slot, boxId, slug, coaches, ownerProfileId, selectMod
               <p className="text-sm font-medium text-text-secondary">Inscritos</p>
               {!rosterLoading && (
                 <span className="text-xs text-text-tertiary">
-                  {attendees.length} / {slot.instance?.capacity ?? slot.defaultCapacity}
+                  {attendees.length + trials.length} / {slot.instance?.capacity ?? slot.defaultCapacity}
                 </span>
               )}
             </div>
@@ -615,35 +637,79 @@ export function SlotCard({ slot, boxId, slug, coaches, ownerProfileId, selectMod
               <p className="text-sm text-text-tertiary">Sem inscrições ainda.</p>
             ) : (
               <div className="rounded-xl border border-border bg-bg-card divide-y divide-border overflow-hidden">
-                {attendees.map((a) => (
-                  <div key={a.booking_id} className="flex items-center gap-3 px-4 py-2.5">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/20 text-xs font-semibold text-accent">
-                      {displayName(a.full_name, a.nickname).charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-text-primary truncate">
-                        {displayName(a.full_name, a.nickname)}
-                      </p>
-                      {a.status === "waitlist" && (
-                        <p className="text-[10px] text-orange-500">Lista de espera</p>
+                {attendees.map((a) => {
+                  const attended = optimisticAttended[a.booking_id] !== undefined
+                    ? optimisticAttended[a.booking_id]
+                    : (a.attended ?? (a.checked_in_at !== null ? true : null));
+                  const isPresent = attended === true;
+                  return (
+                    <div key={a.booking_id} className="flex items-center gap-3 px-4 py-2.5">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/20 text-xs font-semibold text-accent">
+                        {displayName(a.full_name, a.nickname).charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-text-primary truncate">
+                          {displayName(a.full_name, a.nickname)}
+                        </p>
+                        {a.status === "waitlist" && (
+                          <p className="text-[10px] text-orange-500">Lista de espera</p>
+                        )}
+                      </div>
+                      {classStarted && (
+                        <button
+                          type="button"
+                          disabled={rosterPending}
+                          onClick={() => handleCheckIn(a.booking_id, attended ?? null)}
+                          title={isPresent ? "Remover check-in" : "Marcar presença"}
+                          className={cn(
+                            "shrink-0 flex h-6 w-6 items-center justify-center rounded-full transition-colors disabled:opacity-40",
+                            isPresent
+                              ? "bg-success/20 text-success"
+                              : "bg-bg-input text-text-tertiary hover:bg-success/10 hover:text-success"
+                          )}
+                        >
+                          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                            <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
                       )}
+                      <button
+                        type="button"
+                        disabled={rosterPending}
+                        onClick={() => handleRemoveAthlete(a.booking_id, a.user_id)}
+                        className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full text-text-tertiary hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-40"
+                        title="Remover"
+                      >
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                          <path d="M2 2l8 8M10 2L2 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg>
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      disabled={rosterPending}
-                      onClick={() => handleRemoveAthlete(a.booking_id, a.user_id)}
-                      className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full text-text-tertiary hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-40"
-                      title="Remover"
-                    >
-                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                        <path d="M2 2l8 8M10 2L2 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
+
+          {/* Trials */}
+          {trials.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-text-secondary">Trials</p>
+              <div className="rounded-xl border border-border bg-bg-card divide-y divide-border overflow-hidden">
+                {trials.map((t) => (
+                  <div key={t.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold text-accent">
+                      {t.name.charAt(0).toUpperCase()}
+                    </div>
+                    <p className="flex-1 text-sm text-text-primary truncate">{t.name}</p>
+                    <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                      Trial
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <PrimaryButton variant="secondary" onClick={() => setDrawer(null)}>
             Fechar

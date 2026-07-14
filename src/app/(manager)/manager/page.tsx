@@ -1,4 +1,7 @@
-// Fase 2 — Manager dashboard: active members, today's occupancy, retention alerts
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Gestor" };
+
 export default function ManagerDashboardPage() {
   return (
     <main className="p-4">

@@ -116,6 +116,19 @@ export async function removeMember(membershipId: string, boxId: string, slug: st
   revalidatePath(`/box/${slug}/members`);
 }
 
+export async function updateMemberNotes(membershipId: string, boxId: string, slug: string, notes: string) {
+  await assertStaffRole(boxId);
+
+  const { error } = await supabaseAdmin
+    .from("memberships")
+    .update({ notes: notes.trim() || null })
+    .eq("id", membershipId)
+    .eq("box_id", boxId);
+
+  if (error) throw new Error(error.message);
+  revalidatePath(`/box/${slug}/members/${membershipId}`);
+}
+
 export async function revokeInvite(inviteId: string, boxId: string, slug: string) {
   await assertStaffRole(boxId);
 

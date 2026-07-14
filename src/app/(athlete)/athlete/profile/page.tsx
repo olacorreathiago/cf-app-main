@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { getAthleteProfile } from "@/lib/athlete/profile-actions";
 import { supabaseServer } from "@/lib/supabase/server";
 import { ProfileForm } from "./profile-form";
 import { ProfileCompletion } from "./profile-completion";
 import { AvatarUpload } from "./avatar-upload";
+
+export const metadata: Metadata = { title: "Perfil" };
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 

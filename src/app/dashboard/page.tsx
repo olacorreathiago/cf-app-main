@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "./actions";
+
+export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
   const supabase = await supabaseServer();

@@ -3,6 +3,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { notifyWaitlistPromoted } from "@/lib/notifications/send";
 
 export type BookingStatus = "confirmed" | "waitlist" | "cancelled" | null;
 
@@ -130,7 +131,7 @@ export async function cancelBooking(
   if (booking.status === "confirmed") {
     const { data: next } = await supabase
       .from("bookings")
-      .select("id")
+      .select("id, user_id, classes(name, starts_at, box_id, boxes(name))")
       .eq("class_id", classId)
       .eq("status", "waitlist")
       .order("created_at", { ascending: true })
@@ -142,6 +143,26 @@ export async function cancelBooking(
         .from("bookings")
         .update({ status: "confirmed" })
         .eq("id", next.id);
+
+      // Notify the promoted athlete
+      const cls = next.classes as unknown as { name: string; starts_at: string; box_id: string; boxes: { name: string } | null } | null;
+      if (cls) {
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("email")
+          .eq("id", next.user_id)
+          .maybeSingle();
+        if (profile?.email) {
+          await notifyWaitlistPromoted({
+            userId: next.user_id,
+            email: profile.email,
+            boxId: cls.box_id,
+            boxName: cls.boxes?.name ?? "",
+            className: cls.name,
+            startsAt: cls.starts_at,
+          });
+        }
+      }
     }
   }
 

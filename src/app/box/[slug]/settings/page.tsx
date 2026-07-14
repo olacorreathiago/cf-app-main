@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { BoxInfoForm } from "./box-info-form";
 import { BoxOperationalForm } from "./box-operational-form";
 import { ModalitiesForm } from "./modalities-form";
 import type { BoxFull } from "@/types";
+
+export const metadata: Metadata = { title: "Definições" };
 
 interface Props {
   params: Promise<{ slug: string }>;

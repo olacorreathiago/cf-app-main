@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { acceptInvite } from "@/lib/invite/actions";
+
+export const metadata: Metadata = { title: "Convite" };
 
 interface Props {
   searchParams: Promise<{ token?: string }>;
@@ -58,13 +61,13 @@ export default async function InvitePage({ searchParams }: Props) {
       </div>
 
       <div className="max-w-sm space-y-2">
-        <p className="label-caps text-text-tertiary">Convite</p>
-        <h1 className="font-display text-[2rem] leading-[0.95] text-text-primary">
+        <p className="label-caps text-white/45">Convite</p>
+        <h1 className="font-display text-[2rem] uppercase leading-[0.95] text-white">
           Junta-te a<br />{box.name}
         </h1>
-        <p className="text-sm text-text-secondary">
+        <p className="text-sm text-white/60">
           Foste convidado como{" "}
-          <span className="font-medium text-text-primary">
+          <span className="font-medium text-white">
             {roleLabel[invite.role] ?? invite.role}
           </span>.
         </p>
@@ -98,10 +101,10 @@ function InviteError({ message }: { message: string }) {
         </svg>
       </div>
       <div className="space-y-1">
-        <h1 className="font-display text-2xl text-text-primary">Convite inválido</h1>
-        <p className="text-sm text-text-secondary">{message}</p>
+        <h1 className="font-display text-2xl uppercase text-white">Convite inválido</h1>
+        <p className="text-sm text-white/60">{message}</p>
       </div>
-      <a href="/" className="text-sm text-text-tertiary underline-offset-4 hover:text-text-secondary hover:underline transition-colors duration-150">
+      <a href="/" className="text-sm text-white/45 underline-offset-4 hover:text-white/70 hover:underline transition-colors duration-150">
         Voltar ao início
       </a>
     </div>

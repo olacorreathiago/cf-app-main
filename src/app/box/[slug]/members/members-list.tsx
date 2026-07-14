@@ -108,10 +108,10 @@ export function MembersList({ members, boxId, boxName, slug, viewerRole, canInvi
               return (
                 <li key={m.id} className="flex items-center gap-3 rounded-2xl border border-border bg-bg-card px-4 py-3">
                   <Avatar name={name} url={profile.avatar_url} />
-                  <div className="flex-1 min-w-0">
+                  <a href={`/box/${slug}/members/${m.id}`} className="flex-1 min-w-0 hover:opacity-80 transition-opacity">
                     <p className="text-sm font-medium text-text-primary truncate">{name}</p>
                     <p className="text-xs text-text-tertiary truncate">{profile.email}</p>
-                  </div>
+                  </a>
                   <span className="text-xs font-medium text-text-secondary shrink-0">
                     {roleLabel[m.role] ?? m.role}
                   </span>

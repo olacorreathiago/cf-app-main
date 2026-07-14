@@ -6,6 +6,8 @@ import { signOut } from "@/app/dashboard/actions";
 import { BoxSelector } from "./box-selector";
 import { AthleteSidebar, AthleteBottomNav } from "./athlete-sidebar";
 import type { AthleteBox, AthleteProfileData } from "@/lib/athlete/dashboard-actions";
+import { NotificationBell } from "@/components/shared/notification-bell";
+import { getUnreadCount, listNotifications, getPreferences } from "@/lib/notifications/queries";
 
 function getProfileCompletion(profile: AthleteProfileData): number {
   const fields = [
@@ -145,6 +147,15 @@ export default async function AthleteLayout({ children }: { children: React.Reac
 
   const isProfessional = profile.profile_type === "professional";
 
+  // Notification data for the active box
+  const [notifUnread, notifList, notifPrefs] = activeBox
+    ? await Promise.all([
+        getUnreadCount(user.id, activeBox.id),
+        listNotifications(activeBox.id),
+        getPreferences(user.id, activeBox.id),
+      ])
+    : [0, [], []];
+
   // Athlete who was given a staff role in a box — show box management link
   const STAFF_ROLES = ["owner", "partner", "manager", "coach"];
   const staffBox = isProfessional
@@ -212,21 +223,15 @@ export default async function AthleteLayout({ children }: { children: React.Reac
               </Link>
             )}
 
-            {/* Notifications (future) */}
-            <button
-              disabled
-              title="Notificações (em breve)"
-              className="flex h-8 w-8 cursor-not-allowed items-center justify-center rounded-lg text-text-tertiary opacity-40 transition-colors duration-150"
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M8 2a5 5 0 015 5v2.5l1 1.5H2l1-1.5V7a5 5 0 015-5zM6.5 13a1.5 1.5 0 003 0"
-                  stroke="currentColor"
-                  strokeWidth="1.35"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
+            {/* Notifications */}
+            {activeBox && (
+              <NotificationBell
+                boxId={activeBox.id}
+                initialUnread={notifUnread}
+                initialNotifications={notifList}
+                initialPrefs={notifPrefs}
+              />
+            )}
 
             {/* Profile avatar with completion ring */}
             <ProfileCompletionAvatar profile={profile} completion={completion} />

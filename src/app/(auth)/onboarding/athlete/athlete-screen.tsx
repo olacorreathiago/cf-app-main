@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { OnboardingShell, PrimaryButton, FieldInput } from "@/components/shared";
+import { AuthSplitShell, AuthField, PrimaryButton } from "@/components/shared";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { completeAthleteOnboarding } from "@/lib/onboarding/actions";
 import {
@@ -16,12 +16,6 @@ import {
 } from "@/schemas/onboarding";
 
 type Gender = "male" | "female" | null;
-
-const GENDER_OPTIONS: { value: Gender; label: string }[] = [
-  { value: "male",   label: "Masculino" },
-  { value: "female", label: "Feminino" },
-  { value: null,     label: "Prefiro não dizer" },
-];
 
 const container = {
   hidden: {},
@@ -33,8 +27,21 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.22 } },
 };
 
+const PersonIcon = (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+    <circle cx="9" cy="6" r="3" stroke="currentColor" strokeWidth="1.4" />
+    <path d="M3.5 15c.6-2.6 2.8-4 5.5-4s4.9 1.4 5.5 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
+
+const TagIcon = (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+    <path d="M8.4 2.5H3.5A1 1 0 0 0 2.5 3.5v4.9a1 1 0 0 0 .3.7l6.1 6.1a1 1 0 0 0 1.4 0l4.9-4.9a1 1 0 0 0 0-1.4L9.1 2.8a1 1 0 0 0-.7-.3Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    <circle cx="6" cy="6" r="1" fill="currentColor" />
+  </svg>
+);
+
 export function AthleteScreen() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const invite = searchParams.get("invite") ?? undefined;
   const join = searchParams.get("join") ?? undefined;
@@ -45,7 +52,6 @@ export function AthleteScreen() {
   const [gender, setGender] = useState<Gender>(undefined as unknown as Gender);
   const genderSelected = gender !== (undefined as unknown as Gender);
 
-  // Sync invite token from URL if arriving directly (e.g. after email magic link)
   useEffect(() => {
     if (invite && !inviteToken) setInviteToken(invite);
   }, [invite, inviteToken, setInviteToken]);
@@ -63,7 +69,6 @@ export function AthleteScreen() {
       toast.error("Selecciona o teu género para continuar.");
       return;
     }
-    // Persist to store so data isn't lost on re-render
     setFullName(values.fullName);
     setNickname(values.nickname ?? "");
 
@@ -76,7 +81,6 @@ export function AthleteScreen() {
         joinToken: join ?? null,
       });
     } catch (err: unknown) {
-      // Next.js redirect() throws a special error — let it propagate
       if (
         err !== null &&
         typeof err === "object" &&
@@ -90,108 +94,119 @@ export function AthleteScreen() {
     }
   }
 
+  const backHref = `/onboarding/role${invite || join ? `?${new URLSearchParams({ ...(invite ? { invite } : {}), ...(join ? { join } : {}) }).toString()}` : ""}`;
+
   return (
-    <OnboardingShell
-      backHref={`/onboarding/role${invite || join ? `?${new URLSearchParams({ ...(invite ? { invite } : {}), ...(join ? { join } : {}) }).toString()}` : ""}`}
-    >
-      <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="flex flex-1 flex-col justify-between lg:justify-center lg:gap-10"
-      >
-        {/* Heading */}
-        <motion.div variants={item} className="pt-6 lg:pt-0">
-          <p className="label-caps text-text-tertiary mb-3">Perfil</p>
-          <h1 className="font-display text-[2.6rem] leading-[0.92] text-text-primary">
-            Como te<br />chamamos?
-          </h1>
-          <p className="mt-3 text-sm text-text-secondary">
-            O nickname é opcional e público — podes mudar mais tarde.
-          </p>
-        </motion.div>
+    <AuthSplitShell backHref={backHref}>
+      <motion.div variants={container} initial="hidden" animate="show">
+        <motion.h1
+          variants={item}
+          className="mb-6 text-center font-display text-3xl uppercase leading-none tracking-tight text-white lg:text-4xl"
+        >
+          Dados pessoais
+        </motion.h1>
 
-        {/* Form */}
-        <motion.div variants={item}>
-          <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
-            <FieldInput
-              label="Nome completo"
-              placeholder="Ana Ferreira"
-              autoComplete="name"
-              autoCapitalize="words"
-              error={form.formState.errors.fullName?.message}
-              {...form.register("fullName")}
+        <motion.form
+          variants={item}
+          onSubmit={form.handleSubmit(onSubmit)}
+          noValidate
+          className="space-y-4"
+        >
+          <AuthField
+            label="Nome completo"
+            placeholder="João da Silva"
+            autoComplete="name"
+            autoCapitalize="words"
+            trailingIcon={PersonIcon}
+            error={form.formState.errors.fullName?.message}
+            {...form.register("fullName")}
+          />
+
+          <AuthField
+            label="Nickname"
+            placeholder="The Rock"
+            autoComplete="username"
+            autoCapitalize="none"
+            hint="Opcional e visível para outros membros da box."
+            trailingIcon={TagIcon}
+            error={form.formState.errors.nickname?.message}
+            {...form.register("nickname")}
+          />
+
+          {/* Género */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-white/85">Género</p>
+            <div className="grid grid-cols-2 gap-2">
+              <RadioPill label="Masculino" selected={gender === "male"} onClick={() => setGender("male")} />
+              <RadioPill label="Feminino" selected={gender === "female"} onClick={() => setGender("female")} />
+            </div>
+            <RadioPill
+              label="Prefiro não dizer"
+              selected={genderSelected && gender === null}
+              onClick={() => setGender(null)}
+              fullWidth
             />
-
-            <FieldInput
-              label="Nickname"
-              placeholder="anafit (opcional)"
-              autoComplete="username"
-              autoCapitalize="none"
-              hint="Visível para outros membros da box."
-              error={form.formState.errors.nickname?.message}
-              {...form.register("nickname")}
-            />
-
-            {/* Género */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-text-secondary">Género</p>
-              <div className="flex flex-col gap-2">
-                <div className="grid grid-cols-2 gap-2">
-                  {GENDER_OPTIONS.filter((o) => o.value !== null).map((opt) => (
-                    <button
-                      key={String(opt.value)}
-                      type="button"
-                      onClick={() => setGender(opt.value)}
-                      className={cn(
-                        "rounded-xl border px-3 py-2.5 text-sm font-medium transition-all text-left",
-                        gender === opt.value
-                          ? "border-accent bg-accent text-accent-fg"
-                          : "border-border bg-bg-input text-text-secondary hover:border-accent/40 hover:text-text-primary"
-                      )}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setGender(null)}
-                  className={cn(
-                    "w-full rounded-xl border px-3 py-2.5 text-sm font-medium transition-all text-left",
-                    gender === null && genderSelected
-                      ? "border-accent bg-accent text-accent-fg"
-                      : "border-border bg-bg-input text-text-secondary hover:border-accent/40 hover:text-text-primary"
-                  )}
-                >
-                  Prefiro não dizer
-                </button>
+            {genderSelected && gender === null && (
+              <div className="rounded-xl border border-accent/25 bg-accent/[0.08] px-3 py-2.5">
+                <p className="text-xs leading-relaxed text-accent">
+                  Sem género definido, não apareces nos leaderboards da box. Podes alterar nas definições de perfil.
+                </p>
               </div>
-              {genderSelected && gender === null && (
-                <div className="rounded-xl border border-amber-400/30 bg-amber-500/8 px-3 py-2.5">
-                  <p className="text-xs text-amber-600 dark:text-amber-400 leading-relaxed">
-                    Sem género definido, não apareces nos leaderboards da box. Podes alterar nas definições de perfil.
-                  </p>
-                </div>
-              )}
-            </div>
+            )}
+          </div>
 
-            <div className="pt-2">
-              <PrimaryButton
-                type="submit"
-                loading={form.formState.isSubmitting}
-                trailing={
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                }
-              >
-                {form.formState.isSubmitting ? "A guardar..." : "Concluir registo"}
-              </PrimaryButton>
-            </div>
-          </form>
-        </motion.div>
+          <div className="pt-2">
+            <PrimaryButton
+              type="submit"
+              className="h-14"
+              loading={form.formState.isSubmitting}
+              trailing={
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              }
+            >
+              {form.formState.isSubmitting ? "A guardar..." : "Concluir registo"}
+            </PrimaryButton>
+          </div>
+        </motion.form>
       </motion.div>
-    </OnboardingShell>
+    </AuthSplitShell>
+  );
+}
+
+function RadioPill({
+  label,
+  selected,
+  onClick,
+  fullWidth,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  fullWidth?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex h-14 items-center justify-between rounded-2xl border bg-transparent px-4 text-sm font-medium transition-colors",
+        fullWidth && "w-full",
+        selected
+          ? "border-accent text-white"
+          : "border-white/[0.16] text-white/50 hover:border-white/30 hover:text-white"
+      )}
+    >
+      <span>{label}</span>
+      <span
+        className={cn(
+          "flex h-4 w-4 items-center justify-center rounded-full border",
+          selected ? "border-accent" : "border-white/30"
+        )}
+      >
+        {selected && <span className="h-2 w-2 rounded-full bg-accent" />}
+      </span>
+    </button>
   );
 }

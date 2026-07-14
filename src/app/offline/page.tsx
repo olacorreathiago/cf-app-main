@@ -1,3 +1,7 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Offline" };
+
 export default function OfflinePage() {
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center px-6">

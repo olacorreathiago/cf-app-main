@@ -1,10 +1,14 @@
+import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { format, startOfWeek, addDays, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { pt } from "date-fns/locale";
 import { ClassesClient, type DayData } from "./classes-client";
 import type { ClassInstance, ClassTemplate, Wod } from "@/types";
 import type { ClassSlot } from "./slot-card";
+
+export const metadata: Metadata = { title: "Aulas" };
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -102,11 +106,19 @@ export default async function ClassesPage({ params, searchParams }: Props) {
   const allInstanceIds = (instances ?? []).map((i) => i.id);
   const countMap: Record<string, number> = {};
   if (allInstanceIds.length > 0) {
-    const { data: countRows } = await supabase.rpc("get_class_booking_counts", {
-      p_class_ids: allInstanceIds,
-    });
+    const [{ data: countRows }, { data: trialRows }] = await Promise.all([
+      supabase.rpc("get_class_booking_counts", { p_class_ids: allInstanceIds }),
+      supabaseAdmin
+        .from("trials")
+        .select("class_id")
+        .in("class_id", allInstanceIds)
+        .not("status", "in", '("lost","converted")'),
+    ]);
     for (const row of countRows ?? []) {
       countMap[row.class_id] = row.confirmed_count ?? 0;
+    }
+    for (const row of trialRows ?? []) {
+      if (row.class_id) countMap[row.class_id] = (countMap[row.class_id] ?? 0) + 1;
     }
   }
 

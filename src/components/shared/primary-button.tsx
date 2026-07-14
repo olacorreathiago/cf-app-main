@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 interface PrimaryButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "ghost";
+  variant?: "primary" | "secondary" | "ghost" | "light";
   size?: "sm" | "md" | "lg";
   loading?: boolean;
   /** Icon or element on the right side */
@@ -14,6 +14,13 @@ const variants = {
     "hover:bg-accent-hover active:scale-[0.98]",
     "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
     "disabled:bg-accent/40 disabled:text-accent-fg/60"
+  ),
+  // Cream neutral CTA — used on the dark auth entry screens
+  light: cn(
+    "bg-[#E8E6DF] text-[#0A0A0A] font-semibold",
+    "hover:bg-[#D9D7CE] active:scale-[0.98]",
+    "focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]",
+    "disabled:opacity-50"
   ),
   secondary: cn(
     "bg-bg-card text-text-primary font-medium border border-border",
@@ -49,7 +56,7 @@ export function PrimaryButton({
     <button
       disabled={disabled || loading}
       className={cn(
-        "inline-flex w-full items-center justify-center rounded-full",
+        "inline-flex w-full items-center justify-center rounded-2xl",
         "outline-none select-none",
         "transition-all duration-150",
         "disabled:pointer-events-none",

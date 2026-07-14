@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getBenchmarkWods, getWods } from "@/lib/box/wod-actions";
 import { WodList } from "./wod-list";
+
+export const metadata: Metadata = { title: "WODs" };
 
 interface Props {
   params: Promise<{ slug: string }>;
