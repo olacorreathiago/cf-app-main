@@ -83,6 +83,20 @@ export default async function MembersPage({ params }: Props) {
       .order("starts_at"),
   ]);
 
+  // Fetch payment data for drop-ins
+  const dropInIds = (dropIns ?? []).map((d: { id: string }) => d.id);
+  let dropInPayments: Record<string, { id: string; status: string; amount: number }> = {};
+  if (dropInIds.length > 0) {
+    const { data: paymentsData } = await supabaseAdmin
+      .from("payments")
+      .select("id, reference_id, status, amount")
+      .eq("kind", "drop_in")
+      .in("reference_id", dropInIds);
+    for (const p of paymentsData ?? []) {
+      if (p.reference_id) dropInPayments[p.reference_id] = { id: p.id, status: p.status, amount: p.amount };
+    }
+  }
+
   type Member = {
     id: string; role: string; status: string;
     profiles: { full_name: string | null; email: string; avatar_url: string | null };
@@ -118,6 +132,7 @@ export default async function MembersPage({ params }: Props) {
         pendingInvites={pendingInvites}
         trials={trials ?? []}
         dropIns={dropIns ?? []}
+        dropInPayments={dropInPayments}
         dropInEnabled={(box as unknown as { drop_in_enabled: boolean }).drop_in_enabled ?? false}
         dropInPrice={(box as unknown as { drop_in_price: number | null }).drop_in_price ?? null}
         upcomingClasses={upcomingClasses ?? []}

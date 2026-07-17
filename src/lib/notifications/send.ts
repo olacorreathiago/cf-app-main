@@ -4,7 +4,15 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { Resend } from "resend";
 import { APP_CONFIG } from "@/lib/config";
 
-export type NotificationType = "class_cancelled" | "waitlist_promoted" | "new_post" | "athlete_removed" | "class_starting" | "new_drop_in";
+export type NotificationType =
+  | "class_cancelled"
+  | "waitlist_promoted"
+  | "new_post"
+  | "athlete_removed"
+  | "class_starting"
+  | "new_drop_in"
+  | "payment_received"
+  | "payment_overdue";
 
 export interface NotificationData {
   class_id?: string;
@@ -14,6 +22,8 @@ export interface NotificationData {
   post_id?: string;
   post_title?: string;
 }
+
+const ALWAYS_IN_APP: Set<NotificationType> = new Set(["new_drop_in", "class_starting"]);
 
 async function getPrefs(
   userId: string,
@@ -27,7 +37,10 @@ async function getPrefs(
     .eq("box_id", boxId)
     .eq("type", type)
     .maybeSingle();
-  return { in_app: data?.in_app ?? true, email: data?.email ?? true };
+  return {
+    in_app: ALWAYS_IN_APP.has(type) ? true : (data?.in_app ?? true),
+    email: data?.email ?? true,
+  };
 }
 
 async function insertNotification({

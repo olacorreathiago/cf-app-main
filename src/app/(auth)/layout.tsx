@@ -8,12 +8,7 @@
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative min-h-[100svh] overflow-hidden bg-[#131313] text-white antialiased">
-      {/* Page filter — grain + smoke light sweep from the Figma design */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 bg-cover bg-center filter-page"
-      />
-
+      {/* Page filter (grain + light sweep) is applied app-wide in the root layout. */}
       <div className="relative">{children}</div>
     </div>
   );

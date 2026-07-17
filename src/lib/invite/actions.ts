@@ -77,12 +77,23 @@ export async function createEmailInvite(data: {
       throw new Error("Este atleta já é membro ativo da box.");
     }
 
-    // Already has an account — add directly as member
+    // Already has an account — add directly as member (upsert handles existing pending/inactive/trial memberships)
     const { error: memberError } = await supabaseAdmin
       .from("memberships")
-      .insert({ user_id: existingProfile.id, box_id: data.boxId, role: "athlete", status: "active" });
+      .upsert(
+        { user_id: existingProfile.id, box_id: data.boxId, role: "athlete", status: "active" },
+        { onConflict: "user_id,box_id" }
+      );
 
     if (memberError) throw new Error(memberError.message);
+
+    // Mark any pending invites for this email+box as accepted
+    await supabaseAdmin
+      .from("invites")
+      .update({ status: "accepted", accepted_at: new Date().toISOString() })
+      .eq("email", email)
+      .eq("box_id", data.boxId)
+      .eq("status", "pending");
 
     // Send a notification email (no action needed — they're already in)
     if (process.env.RESEND_API_KEY) {

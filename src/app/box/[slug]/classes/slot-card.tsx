@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ensureInstance, publishClass, cancelClass, updateClass } from "@/lib/box/classes-actions";
 import { getClassRoster, addAthleteToClass, removeAthleteFromClass, getAthleteClassResultCount } from "@/lib/box/roster-actions";
 import { checkInAthlete } from "@/lib/box/today-actions";
-import type { RosterAttendee, BoxMemberOption, TrialRosterEntry } from "@/lib/box/roster-actions";
+import type { RosterAttendee, BoxMemberOption, TrialRosterEntry, DropInRosterEntry } from "@/lib/box/roster-actions";
 import { PrimaryButton, FieldInput } from "@/components/shared";
 import { cn } from "@/lib/utils";
 import type { ClassInstance, ClassTemplate } from "@/types";
@@ -132,6 +132,7 @@ export function SlotCard({ slot, boxId, slug, coaches, ownerProfileId, selectMod
   const [attendees, setAttendees] = useState<RosterAttendee[]>([]);
   const [availableMembers, setAvailableMembers] = useState<BoxMemberOption[]>([]);
   const [trials, setTrials] = useState<TrialRosterEntry[]>([]);
+  const [dropIns, setDropIns] = useState<DropInRosterEntry[]>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
   const [rosterPending, startRosterTransition] = useTransition();
@@ -151,10 +152,11 @@ export function SlotCard({ slot, boxId, slug, coaches, ownerProfileId, selectMod
     setRosterLoading(true);
     const classId = slot.instance?.id;
     if (!classId) { setRosterLoading(false); return; }
-    getClassRoster(classId, boxId).then(({ attendees, availableMembers, trials }) => {
+    getClassRoster(classId, boxId).then(({ attendees, availableMembers, trials, dropIns }) => {
       setAttendees(attendees);
       setAvailableMembers(availableMembers);
       setTrials(trials);
+      setDropIns(dropIns);
       setRosterLoading(false);
     });
   }
@@ -166,10 +168,11 @@ export function SlotCard({ slot, boxId, slug, coaches, ownerProfileId, selectMod
       const res = await addAthleteToClass(classId, userId, boxId, slug);
       if (res.error) { toast.error(res.error); return; }
       setMemberSearch("");
-      const { attendees: fresh, availableMembers: freshMembers, trials: freshTrials } = await getClassRoster(classId, boxId);
+      const { attendees: fresh, availableMembers: freshMembers, trials: freshTrials, dropIns: freshDropIns } = await getClassRoster(classId, boxId);
       setAttendees(fresh);
       setAvailableMembers(freshMembers);
       setTrials(freshTrials);
+      setDropIns(freshDropIns);
       toast.success("Atleta adicionado");
     });
   }
@@ -619,7 +622,7 @@ export function SlotCard({ slot, boxId, slug, coaches, ownerProfileId, selectMod
               <p className="text-sm font-medium text-text-secondary">Inscritos</p>
               {!rosterLoading && (
                 <span className="text-xs text-text-tertiary">
-                  {attendees.length + trials.length} / {slot.instance?.capacity ?? slot.defaultCapacity}
+                  {attendees.length + trials.length + dropIns.length} / {slot.instance?.capacity ?? slot.defaultCapacity}
                 </span>
               )}
             </div>
@@ -704,6 +707,31 @@ export function SlotCard({ slot, boxId, slug, coaches, ownerProfileId, selectMod
                     <p className="flex-1 text-sm text-text-primary truncate">{t.name}</p>
                     <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
                       Trial
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Drop-ins */}
+          {dropIns.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-text-secondary">Drop-ins</p>
+              <div className="rounded-xl border border-border bg-bg-card divide-y divide-border overflow-hidden">
+                {dropIns.map((d) => (
+                  <div key={d.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-xs font-semibold text-blue-500">
+                      {(d.nickname ?? d.name).charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-text-primary truncate">{d.nickname ?? d.name}</p>
+                      {d.email && (
+                        <p className="text-[10px] text-text-tertiary truncate">{d.email}</p>
+                      )}
+                    </div>
+                    <span className="shrink-0 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-500">
+                      Drop-in
                     </span>
                   </div>
                 ))}

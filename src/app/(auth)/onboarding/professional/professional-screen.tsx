@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { AuthSplitShell, AuthField, PrimaryButton } from "@/components/shared";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { completeProfessionalOnboarding } from "@/lib/onboarding/actions";
@@ -13,6 +14,8 @@ import {
   professionalOnboardingSchema,
   type ProfessionalOnboardingValues,
 } from "@/schemas/onboarding";
+
+type Gender = "male" | "female" | null;
 
 const container = {
   hidden: {},
@@ -52,6 +55,9 @@ export function ProfessionalScreen() {
   const { fullName, professionalId, phone, inviteToken, setFullName, setProfessionalId, setPhone, setInviteToken } =
     useOnboardingStore();
 
+  const [gender, setGender] = useState<Gender>(undefined as unknown as Gender);
+  const genderSelected = gender !== (undefined as unknown as Gender);
+
   useEffect(() => {
     if (invite && !inviteToken) setInviteToken(invite);
   }, [invite, inviteToken, setInviteToken]);
@@ -66,6 +72,10 @@ export function ProfessionalScreen() {
   });
 
   async function onSubmit(values: ProfessionalOnboardingValues) {
+    if (!genderSelected) {
+      toast.error("Selecciona o teu género para continuar.");
+      return;
+    }
     setFullName(values.fullName);
     setProfessionalId(values.professionalId);
     setPhone(values.phone);
@@ -75,6 +85,7 @@ export function ProfessionalScreen() {
         fullName: values.fullName,
         professionalId: values.professionalId,
         phone: values.phone,
+        gender: gender,
         inviteToken: inviteToken ?? invite ?? null,
       });
     } catch (err: unknown) {
@@ -140,6 +151,28 @@ export function ProfessionalScreen() {
             {...form.register("phone")}
           />
 
+          {/* Género */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-white/85">Género</p>
+            <div className="grid grid-cols-2 gap-2">
+              <RadioPill label="Masculino" selected={gender === "male"} onClick={() => setGender("male")} />
+              <RadioPill label="Feminino" selected={gender === "female"} onClick={() => setGender("female")} />
+            </div>
+            <RadioPill
+              label="Prefiro não dizer"
+              selected={genderSelected && gender === null}
+              onClick={() => setGender(null)}
+              fullWidth
+            />
+            {genderSelected && gender === null && (
+              <div className="rounded-xl border border-accent/25 bg-accent/[0.08] px-3 py-2.5">
+                <p className="text-xs leading-relaxed text-accent">
+                  Sem género definido, não apareces nos leaderboards da box. Podes alterar nas definições de perfil.
+                </p>
+              </div>
+            )}
+          </div>
+
           <div className="pt-2">
             <PrimaryButton
               type="submit"
@@ -157,5 +190,41 @@ export function ProfessionalScreen() {
         </motion.form>
       </motion.div>
     </AuthSplitShell>
+  );
+}
+
+function RadioPill({
+  label,
+  selected,
+  onClick,
+  fullWidth,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  fullWidth?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex h-14 items-center justify-between rounded-2xl border bg-transparent px-4 text-sm font-medium transition-colors",
+        fullWidth && "w-full",
+        selected
+          ? "border-accent text-white"
+          : "border-white/[0.16] text-white/50 hover:border-white/30 hover:text-white"
+      )}
+    >
+      <span>{label}</span>
+      <span
+        className={cn(
+          "flex h-4 w-4 items-center justify-center rounded-full border",
+          selected ? "border-accent" : "border-white/30"
+        )}
+      >
+        {selected && <span className="h-2 w-2 rounded-full bg-accent" />}
+      </span>
+    </button>
   );
 }

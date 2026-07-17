@@ -21,6 +21,8 @@ const CATEGORY_LABELS: Record<WodCategory, string> = {
   notables:     "Notables",
   games:        "Games",
   weightlifting:"Weightlifting",
+  endurance:    "Endurance",
+  gymnastics:   "Gymnastics",
   original:     "Original",
 };
 

@@ -53,8 +53,13 @@ export function LoginScreen() {
       await signInWithMagicLink(email, { next, invite, join });
       setSentEmail(email);
       setScreen("sent");
-    } catch {
-      toast.error("Não foi possível enviar o link. Tenta novamente.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.toLowerCase().includes("rate") || msg.toLowerCase().includes("limit")) {
+        toast.error("Aguarda um momento antes de pedir outro link.");
+      } else {
+        toast.error(msg || "Não foi possível enviar o link. Tenta novamente.");
+      }
     }
   }
 

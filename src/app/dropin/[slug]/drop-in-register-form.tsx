@@ -13,6 +13,8 @@ interface Props {
   prefill: { name: string | null; email: string | null; nickname: string | null } | null;
   isLoggedIn: boolean;
   upcomingClasses: UpcomingClass[];
+  dropInPrice: number | null;
+  paymentInstructions: string | null;
 }
 
 function groupByDate(classes: UpcomingClass[]) {
@@ -28,7 +30,7 @@ function groupByDate(classes: UpcomingClass[]) {
   return groups;
 }
 
-export function DropInRegisterForm({ boxId, slug, prefill, isLoggedIn, upcomingClasses }: Props) {
+export function DropInRegisterForm({ boxId, slug, prefill, isLoggedIn, upcomingClasses, dropInPrice, paymentInstructions }: Props) {
   const pathname = usePathname();
   const [name, setName] = useState(prefill?.name ?? "");
   const [email, setEmail] = useState(prefill?.email ?? "");
@@ -60,19 +62,38 @@ export function DropInRegisterForm({ boxId, slug, prefill, isLoggedIn, upcomingC
   }
 
   if (success) {
+    const hasPrice = dropInPrice != null && dropInPrice > 0;
     return (
-      <div className="rounded-2xl border border-border bg-bg-card p-8 text-center space-y-4">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success/10 text-success">
-          <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-            <path d="M4 13l6 6L22 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-border bg-bg-card p-8 text-center space-y-4">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success/10 text-success">
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+              <path d="M4 13l6 6L22 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold text-text-primary">Pedido enviado!</h2>
+            <p className="text-sm text-text-tertiary">
+              O staff da box vai confirmar o teu drop-in em breve. Receberás um email de confirmação.
+            </p>
+          </div>
         </div>
-        <div className="space-y-1">
-          <h2 className="text-base font-semibold text-text-primary">Pedido enviado!</h2>
-          <p className="text-sm text-text-tertiary">
-            O staff da box vai confirmar o teu drop-in em breve. Receberás um email de confirmação.
-          </p>
-        </div>
+
+        {hasPrice && (
+          <div className="rounded-2xl border border-border bg-bg-card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-widest text-text-tertiary">Pagamento</p>
+              <span className="rounded-full bg-warning/10 px-2.5 py-0.5 text-[10px] font-medium text-warning">Pendente</span>
+            </div>
+            <p className="text-lg font-semibold text-text-primary">{dropInPrice!.toFixed(2)} €</p>
+            {paymentInstructions && (
+              <div className="rounded-xl bg-bg-input p-3">
+                <p className="text-xs font-medium text-text-secondary mb-1">Instruções de pagamento</p>
+                <p className="text-sm text-text-primary whitespace-pre-line">{paymentInstructions}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }

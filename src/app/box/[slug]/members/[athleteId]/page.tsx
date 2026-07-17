@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { AthleteProfileTabs } from "./athlete-profile-tabs";
 import { getAthletePresencas, getAthletePrs, getAthleteAtividade } from "@/lib/box/athlete-profile-actions";
+import { getPlans } from "@/lib/box/plan-actions";
 
 export const metadata: Metadata = { title: "Perfil do Atleta" };
 
@@ -49,7 +50,7 @@ export default async function AthleteProfilePage({ params }: Props) {
   // Load athlete membership in this box
   const { data: membership } = await supabaseAdmin
     .from("memberships")
-    .select("id, role, status, notes, created_at, profiles(id, full_name, email, avatar_url, phone)")
+    .select("id, role, status, notes, plan_id, created_at, profiles(id, full_name, email, avatar_url, phone)")
     .eq("id", athleteId)
     .eq("box_id", box.id)
     .maybeSingle();
@@ -64,10 +65,11 @@ export default async function AthleteProfilePage({ params }: Props) {
     phone: string | null;
   };
 
-  const [presencasData, prs, atividadeData] = await Promise.all([
+  const [presencasData, prs, atividadeData, plans] = await Promise.all([
     getAthletePresencas(profile.id, box.id),
     getAthletePrs(profile.id, box.id),
     getAthleteAtividade(profile.id, profile.email, box.id),
+    getPlans(box.id),
   ]);
 
   return (
@@ -82,8 +84,10 @@ export default async function AthleteProfilePage({ params }: Props) {
           role: membership.role,
           status: membership.status,
           notes: membership.notes as string | null,
+          plan_id: (membership as unknown as { plan_id: string | null }).plan_id,
           created_at: membership.created_at,
         }}
+        plans={plans.filter((p) => p.active)}
         profile={profile}
         roleLabel={ROLE_LABEL}
         presencasData={presencasData}

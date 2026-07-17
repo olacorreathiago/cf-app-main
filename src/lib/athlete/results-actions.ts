@@ -78,7 +78,7 @@ export async function getAthleteResultsCalendar(year: number, month: number): Pr
   const from = `${year}-${monthStr}-01T00:00:00`;
   const to = `${year}-${monthStr}-${String(lastDay).padStart(2, "0")}T23:59:59`;
 
-  // Find all classes the athlete attended (confirmed booking) in the month that have WODs
+  // Find all classes the athlete attended (confirmed booking + check-in) in the month that have WODs
   const { data: classes } = await supabase
     .from("classes")
     .select("id, starts_at, wod_ids")
@@ -97,6 +97,8 @@ export async function getAthleteResultsCalendar(year: number, month: number): Pr
     .from("bookings")
     .select("class_id")
     .eq("user_id", user.id)
+    .eq("status", "confirmed")
+    .eq("attended", true)
     .in("class_id", classIds);
 
   const bookedClassIds = new Set((bookings ?? []).map((b) => b.class_id));
@@ -150,6 +152,8 @@ export async function getAthleteResultsForDay(date: string): Promise<AthleteResu
     .from("bookings")
     .select("class_id")
     .eq("user_id", user.id)
+    .eq("status", "confirmed")
+    .eq("attended", true)
     .in("class_id", classIds);
 
   const bookedClassIds = new Set((bookings ?? []).map((b) => b.class_id));

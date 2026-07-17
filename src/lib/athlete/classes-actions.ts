@@ -217,13 +217,15 @@ export async function getAthleteWeekClasses(weekOffset = 0): Promise<WeekClasses
   const { data: myBookings } = classIds.length > 0
     ? await supabase
         .from("bookings")
-        .select("class_id, status")
+        .select("class_id, status, attended")
         .eq("user_id", user.id)
         .in("class_id", classIds)
     : { data: [] };
   const myBookingMap: Record<string, "confirmed" | "waitlist" | "cancelled"> = {};
+  const myAttendedMap: Record<string, boolean | null> = {};
   for (const b of myBookings ?? []) {
     myBookingMap[b.class_id] = b.status as "confirmed" | "waitlist" | "cancelled";
+    myAttendedMap[b.class_id] = (b as { attended?: boolean | null }).attended ?? null;
   }
 
   // Waitlist positions for classes where this athlete is waitlisted
@@ -250,6 +252,7 @@ export async function getAthleteWeekClasses(weekOffset = 0): Promise<WeekClasses
     confirmed_count: countMap[c.id]?.confirmed ?? 0,
     waitlist_count: countMap[c.id]?.waitlist ?? 0,
     my_booking_status: myBookingMap[c.id] ?? null,
+    my_attended: myAttendedMap[c.id] ?? null,
     my_waitlist_position: waitlistPositionMap[c.id],
   }));
 
@@ -262,12 +265,14 @@ export async function getAthleteWeekClasses(weekOffset = 0): Promise<WeekClasses
   let attendedClasses: AthleteDashboardClass[] = [];
 
   if (weekOffset === 0) {
-    // Get all confirmed bookings (no date restriction — we filter by class below)
+    // Confirmed bookings with check-in (attended = true) — only those grant
+    // access to the class WODs / result registration ("Já participei")
     const { data: myConfirmedBookings } = await supabase
       .from("bookings")
       .select("class_id")
       .eq("user_id", user.id)
-      .eq("status", "confirmed");
+      .eq("status", "confirmed")
+      .eq("attended", true);
 
     const bookedIds = (myConfirmedBookings ?? []).map((b) => b.class_id);
 
@@ -320,6 +325,7 @@ export async function getAthleteWeekClasses(weekOffset = 0): Promise<WeekClasses
         confirmed_count: pastCountMap[c.id]?.confirmed ?? 0,
         waitlist_count: pastCountMap[c.id]?.waitlist ?? 0,
         my_booking_status: "confirmed" as const,
+        my_attended: true,
       }));
 
       // Fetch WOD data for attended classes
@@ -328,10 +334,10 @@ export async function getAthleteWeekClasses(weekOffset = 0): Promise<WeekClasses
     }
   } else {
     // For other weeks: all classes are already in `classes`.
-    // Fetch WOD data for confirmed+past ones so result button works.
+    // Fetch WOD data for checked-in past ones so the result button works.
     const pastAttended = classes.filter((c) => {
       const endsAt = new Date(new Date(c.starts_at).getTime() + c.duration_minutes * 60_000);
-      return c.my_booking_status === "confirmed" && endsAt < now;
+      return c.my_booking_status === "confirmed" && c.my_attended === true && endsAt < now;
     });
     if (pastAttended.length > 0) {
       const wodsByClass = await fetchWodsForClasses(supabase, pastAttended, user.id, activeBox.id);

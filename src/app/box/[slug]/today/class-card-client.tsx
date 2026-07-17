@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { CoachTodayClass, CoachTodayAthlete } from "@/lib/box/coach-today-actions";
+import type { CoachTodayClass, CoachTodayAthlete, CoachTodayDropIn } from "@/lib/box/coach-today-actions";
 import {
   checkInAthlete,
   getAvailableMembersForClass,
@@ -14,6 +14,8 @@ import {
 } from "@/lib/box/today-actions";
 import { checkInTrial } from "@/lib/box/trial-actions";
 import { checkInDropIn, confirmDropIn, cancelDropIn } from "@/lib/box/drop-in-actions";
+import { markPaymentPaid, recordPayment } from "@/lib/payments/actions";
+import type { PaymentMethod } from "@/lib/payments/types";
 import { updateClass } from "@/lib/box/classes-actions";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -243,6 +245,9 @@ export function ClassCardClient({ cls, slug, boxId, coaches, autoOpenCheckIn }: 
   const [optimisticTrialCheckin, setOptimisticTrialCheckin] = useState<Record<string, boolean>>({});
   const [optimisticDropInCheckin, setOptimisticDropInCheckin] = useState<Record<string, boolean>>({});
   const [optimisticDropInStatus, setOptimisticDropInStatus] = useState<Record<string, "pending" | "confirmed" | "cancelled">>({});
+  const [optimisticPaymentStatus, setOptimisticPaymentStatus] = useState<Record<string, "pending" | "paid">>({});
+  const [paymentDropInId, setPaymentDropInId] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
 
   // Drawers
   const [checkInOpen, setCheckInOpen] = useState(autoOpenCheckIn ?? false);
@@ -307,6 +312,27 @@ export function ClassCardClient({ cls, slug, boxId, coaches, autoOpenCheckIn }: 
       if (result.error) {
         toast.error(result.error);
         setOptimisticDropInStatus((prev) => ({ ...prev, [dropInId]: "pending" }));
+      }
+    });
+  }
+
+  function handleMarkPayment(dropIn: CoachTodayDropIn) {
+    setOptimisticPaymentStatus((prev) => ({ ...prev, [dropIn.id]: "paid" }));
+    setPaymentDropInId(null);
+    startTransition(async () => {
+      try {
+        if (dropIn.payment_id) {
+          await markPaymentPaid({
+            payment_id: dropIn.payment_id,
+            box_id: boxId,
+            method: paymentMethod,
+            slug,
+          });
+        }
+        toast.success("Pagamento registado.");
+      } catch {
+        toast.error("Erro ao registar pagamento.");
+        setOptimisticPaymentStatus((prev) => ({ ...prev, [dropIn.id]: "pending" }));
       }
     });
   }
@@ -623,56 +649,128 @@ export function ClassCardClient({ cls, slug, boxId, coaches, autoOpenCheckIn }: 
                   {cls.dropIns.map((dropIn) => {
                     const status = optimisticDropInStatus[dropIn.id] ?? dropIn.status;
                     const checkedIn = optimisticDropInCheckin[dropIn.id] ?? dropIn.checked_in;
-                    const displayName = dropIn.name ?? dropIn.email ?? "Drop-in";
+                    const pStatus = optimisticPaymentStatus[dropIn.id] ?? dropIn.payment_status;
+                    const displayName = dropIn.nickname ?? dropIn.name ?? dropIn.email ?? "Drop-in";
                     if (status === "cancelled") return null;
+                    const isPaymentPending = pStatus === "pending";
+                    const isPaymentPaid = pStatus === "paid";
                     return (
-                      <div key={dropIn.id} className="flex items-center gap-3 px-4 py-3">
-                        <div className="h-9 w-9 rounded-full bg-blue-500/10 flex items-center justify-center text-sm font-semibold text-blue-500 shrink-0">
-                          {displayName.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-text-primary truncate">{displayName}</p>
-                          <span className={cn(
-                            "text-[10px] font-medium rounded-full px-2 py-0.5",
-                            status === "pending"
-                              ? "bg-warning/10 text-warning"
-                              : "bg-blue-500/10 text-blue-500"
-                          )}>
-                            {status === "pending" ? "Pendente" : "Drop-in"}
-                          </span>
-                        </div>
-                        {status === "pending" ? (
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <button
-                              type="button"
-                              disabled={pending}
-                              onClick={() => handleDropInConfirm(dropIn.id)}
-                              title="Confirmar drop-in"
-                              className="flex h-9 w-9 items-center justify-center rounded-full bg-success/10 text-success transition-colors hover:bg-success/20 disabled:opacity-40"
-                            >
-                              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                <path d="M2 7l3.5 3.5L12 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              disabled={pending}
-                              onClick={() => handleDropInCancel(dropIn.id)}
-                              title="Recusar drop-in"
-                              className="flex h-9 w-9 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-error/10 hover:text-error disabled:opacity-40"
-                            >
-                              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                                <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                              </svg>
-                            </button>
+                      <div key={dropIn.id} className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-full bg-blue-500/10 flex items-center justify-center text-sm font-semibold text-blue-500 shrink-0">
+                            {displayName.charAt(0).toUpperCase()}
                           </div>
-                        ) : (
-                          <CheckInToggle
-                            attended={checkedIn ? true : null}
-                            disabled={!canCheckIn || pending}
-                            onToggle={() => handleDropInCheckIn(dropIn.id, !checkedIn)}
-                          />
-                        )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-text-primary truncate">{displayName}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={cn(
+                                "text-[10px] font-medium rounded-full px-2 py-0.5",
+                                status === "pending"
+                                  ? "bg-warning/10 text-warning"
+                                  : "bg-blue-500/10 text-blue-500"
+                              )}>
+                                {status === "pending" ? "Pendente" : "Drop-in"}
+                              </span>
+                              {isPaymentPaid && (
+                                <span className="text-[10px] font-medium rounded-full px-2 py-0.5 bg-accent/10 text-accent">
+                                  Pago
+                                </span>
+                              )}
+                              {isPaymentPending && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setPaymentDropInId(dropIn.id); setPaymentMethod("cash"); }}
+                                  className="text-[10px] font-medium rounded-full px-2 py-0.5 bg-warning/10 text-warning hover:bg-warning/20 transition-colors"
+                                >
+                                  Pag. pendente
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {status === "pending" ? (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                disabled={pending}
+                                onClick={() => handleDropInConfirm(dropIn.id)}
+                                title="Confirmar drop-in"
+                                className="flex h-9 w-9 items-center justify-center rounded-full bg-success/10 text-success transition-colors hover:bg-success/20 disabled:opacity-40"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                  <path d="M2 7l3.5 3.5L12 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                disabled={pending}
+                                onClick={() => handleDropInCancel(dropIn.id)}
+                                title="Recusar drop-in"
+                                className="flex h-9 w-9 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-error/10 hover:text-error disabled:opacity-40"
+                              >
+                                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                                  <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                </svg>
+                              </button>
+                            </div>
+                          ) : (
+                            <CheckInToggle
+                              attended={checkedIn ? true : null}
+                              disabled={!canCheckIn || pending}
+                              onToggle={() => handleDropInCheckIn(dropIn.id, !checkedIn)}
+                            />
+                          )}
+                        </div>
+
+                        {/* Inline payment form */}
+                        <AnimatePresence>
+                          {paymentDropInId === dropIn.id && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.15 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="mt-3 ml-12 rounded-xl border border-border bg-bg-input p-3 space-y-2.5">
+                                <p className="text-xs font-medium text-text-secondary">Método de pagamento</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {(["cash", "mbway", "transferencia", "multibanco", "card"] as PaymentMethod[]).map((m) => (
+                                    <button
+                                      key={m}
+                                      type="button"
+                                      onClick={() => setPaymentMethod(m)}
+                                      className={cn(
+                                        "rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
+                                        paymentMethod === m
+                                          ? "bg-accent text-black"
+                                          : "bg-bg-card border border-border text-text-secondary hover:text-text-primary"
+                                      )}
+                                    >
+                                      {{ cash: "Dinheiro", mbway: "MB Way", transferencia: "Transferência", multibanco: "Multibanco", card: "Cartão" }[m]}
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={pending}
+                                    onClick={() => handleMarkPayment(dropIn)}
+                                    className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-black disabled:opacity-50"
+                                  >
+                                    Confirmar pagamento
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPaymentDropInId(null)}
+                                    className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     );
                   })}

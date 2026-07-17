@@ -108,6 +108,7 @@ export function WodCard({ wod, boxId }: Props) {
       <WodResultDrawer
         wod={wod}
         boxId={boxId}
+        classId={wod.class_id ?? null}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onSaved={handleSaved}

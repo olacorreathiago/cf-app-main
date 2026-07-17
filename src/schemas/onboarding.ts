@@ -37,6 +37,7 @@ export const professionalOnboardingSchema = z.object({
     .string()
     .min(9, "Contacto inválido")
     .max(20, "Contacto demasiado longo"),
+  gender: z.enum(["male", "female"]).nullable().optional(),
 });
 
 export type ProfessionalOnboardingValues = z.infer<typeof professionalOnboardingSchema>;

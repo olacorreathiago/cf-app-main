@@ -4,6 +4,7 @@ import { useState } from "react";
 import { TabPerfil } from "./tab-perfil";
 import { TabPresencas } from "./tab-presencas";
 import type { AthletePresencasData, AthletePr, AthleteAtividadeData } from "@/lib/box/athlete-profile-actions";
+import type { Plan } from "@/lib/box/plan-actions";
 
 interface Profile {
   id: string;
@@ -18,6 +19,7 @@ interface Membership {
   role: string;
   status: string;
   notes: string | null;
+  plan_id: string | null;
   created_at: string;
 }
 
@@ -29,6 +31,7 @@ interface Props {
   membership: Membership;
   profile: Profile;
   roleLabel: Record<string, string>;
+  plans: Plan[];
   presencasData: AthletePresencasData;
   prs: AthletePr[];
   atividadeData: AthleteAtividadeData;
@@ -55,6 +58,7 @@ export function AthleteProfileTabs({
   membership,
   profile,
   roleLabel,
+  plans,
   presencasData,
   prs,
   atividadeData,
@@ -151,6 +155,7 @@ export function AthleteProfileTabs({
           profile={profile}
           viewerRole={viewerRole}
           roleLabel={roleLabel}
+          plans={plans}
         />
       )}
 

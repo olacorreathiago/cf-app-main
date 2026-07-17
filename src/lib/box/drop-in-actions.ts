@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { APP_CONFIG } from "@/lib/config";
 import { Resend } from "resend";
+import { createDropInPayment } from "@/lib/payments/actions";
 
 async function assertStaff(boxId: string) {
   const supabase = await supabaseServer();
@@ -84,10 +85,27 @@ export async function createDropIn(formData: FormData) {
     if (existing) return { error: "Já existe um drop-in ativo com este email nesta aula." };
   }
 
+  // Resolve user_id if email belongs to an existing user
+  let resolvedUserId: string | null = null;
+  if (email) {
+    const { data: existingProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name")
+      .eq("email", email)
+      .maybeSingle();
+    if (existingProfile) {
+      resolvedUserId = existingProfile.id;
+      if (!name && existingProfile.full_name) {
+        // This shouldn't happen since name is required, but belt-and-suspenders
+      }
+    }
+  }
+
   const { data: dropIn, error } = await supabaseAdmin
     .from("drop_ins")
     .insert({
       box_id: boxId,
+      user_id: resolvedUserId,
       name,
       email,
       nickname,
@@ -101,6 +119,22 @@ export async function createDropIn(formData: FormData) {
     .single();
 
   if (error) return { error: error.message };
+
+  // Create pending payment if box has a drop-in price
+  const { data: boxForPrice } = await supabaseAdmin
+    .from("boxes")
+    .select("drop_in_price")
+    .eq("id", boxId)
+    .single();
+
+  if (boxForPrice?.drop_in_price != null && boxForPrice.drop_in_price > 0) {
+    await createDropInPayment({
+      box_id: boxId,
+      user_id: null,
+      drop_in_id: dropIn.id,
+      amount: boxForPrice.drop_in_price,
+    });
+  }
 
   // Confirmation email to athlete
   if (email && class_id && process.env.RESEND_API_KEY) {
@@ -211,6 +245,29 @@ export async function createDropInPublic(payload: {
 
   if (error) return { error: error.message };
 
+  // Create pending payment if box has a drop-in price
+  const { data: boxForPrice } = await supabaseAdmin
+    .from("boxes")
+    .select("drop_in_price, payment_instructions")
+    .eq("id", boxId)
+    .single();
+
+  let paymentInstructions: string | null = null;
+  let dropInPrice: number | null = null;
+
+  if (boxForPrice) {
+    dropInPrice = boxForPrice.drop_in_price;
+    paymentInstructions = boxForPrice.payment_instructions;
+    if (dropInPrice != null && dropInPrice > 0) {
+      await createDropInPayment({
+        box_id: boxId,
+        user_id: null,
+        drop_in_id: dropIn.id,
+        amount: dropInPrice,
+      });
+    }
+  }
+
   // Notify staff
   const { data: box } = await supabaseAdmin.from("boxes").select("name").eq("id", boxId).single();
   const { data: managers } = await supabaseAdmin
@@ -290,6 +347,13 @@ export async function createDropInPublic(payload: {
         hour12: false,
         timeZone: "UTC",
       });
+      const priceHtml = dropInPrice != null && dropInPrice > 0
+        ? `<p style="color:#666;margin-bottom:8px"><strong>Valor:</strong> ${dropInPrice.toFixed(2)} €</p>`
+        : "";
+      const instructionsHtml = paymentInstructions
+        ? `<p style="background:#f5f5f5;padding:12px 16px;border-radius:8px;color:#555;margin-bottom:24px;white-space:pre-line"><strong>Instruções de pagamento:</strong><br/>${paymentInstructions}</p>`
+        : "";
+
       await resend.emails.send({
         from: `${APP_CONFIG.name} <noreply@cfapp.pt>`,
         to: email,
@@ -298,7 +362,9 @@ export async function createDropInPublic(payload: {
           <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
             <h2 style="margin-bottom:8px">Pedido recebido!</h2>
             <p style="color:#666;margin-bottom:16px">O teu pedido de drop-in em <strong>${box.name}</strong> foi recebido e aguarda confirmação.</p>
-            <p style="background:#f5f5f5;padding:12px 16px;border-radius:8px;font-weight:600;margin-bottom:24px">${cls.name} — ${dateStr}</p>
+            <p style="background:#f5f5f5;padding:12px 16px;border-radius:8px;font-weight:600;margin-bottom:16px">${cls.name} — ${dateStr}</p>
+            ${priceHtml}
+            ${instructionsHtml}
             <p style="color:#999;font-size:13px">Receberás um email assim que for confirmado.</p>
           </div>
         `,
@@ -309,7 +375,11 @@ export async function createDropInPublic(payload: {
   }
 
   revalidatePath(`/box/${slug}/members`);
-  return { data: dropIn as DropIn };
+  return {
+    data: dropIn as DropIn,
+    price: dropInPrice,
+    paymentInstructions,
+  };
 }
 
 /** Confirma um drop-in pendente e envia email ao atleta */
@@ -423,6 +493,12 @@ export async function updateDropInNotes(
 
 export async function deleteDropIn(dropInId: string, boxId: string, slug: string) {
   await assertStaff(boxId);
+
+  await supabaseAdmin
+    .from("payments")
+    .delete()
+    .eq("kind", "drop_in")
+    .eq("reference_id", dropInId);
 
   const { error } = await supabaseAdmin
     .from("drop_ins")

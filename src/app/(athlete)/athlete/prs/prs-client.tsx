@@ -1,11 +1,15 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import confetti from "canvas-confetti";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { getBenchmarkHistory } from "@/lib/athlete/prs-actions";
+import { recordManualBenchmarkResult } from "@/lib/athlete/manual-result-actions";
+import { FieldInput, PrimaryButton } from "@/components/shared";
 import type { BenchmarkWithPr, ResultHistoryEntry } from "@/lib/athlete/prs-actions";
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -16,6 +20,8 @@ const CATEGORY_LABEL: Record<string, string> = {
   notables:     "Notables",
   games:        "Games",
   weightlifting:"Weightlifting",
+  endurance:    "Endurance",
+  gymnastics:   "Gymnastics",
   original:     "Da box",
 };
 
@@ -28,21 +34,203 @@ const WOD_TYPE_COLOR: Record<string, string> = {
   Custom:     "bg-border/60 text-text-secondary border-border",
 };
 
+// ── Manual entry ───────────────────────────────────────────────────────────
+
+type ManualScoreType = "time" | "reps" | "weight";
+
+/** Which score input the manual form shows for this benchmark */
+function manualScoreType(benchmark: BenchmarkWithPr): ManualScoreType {
+  if (benchmark.score_type === "time" || benchmark.score_type === "reps" || benchmark.score_type === "weight") {
+    return benchmark.score_type;
+  }
+  if (benchmark.wod_type === "For Time") return "time";
+  if (benchmark.wod_type === "For Load") return "weight";
+  return "reps";
+}
+
+function fmtSecs(total: number): string {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function ManualEntryForm({ benchmark, onSaved, onCancel }: {
+  benchmark: BenchmarkWithPr;
+  onSaved: (isPR: boolean) => void;
+  onCancel: () => void;
+}) {
+  const scoreType = manualScoreType(benchmark);
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  const [mins, setMins] = useState("");
+  const [secs, setSecs] = useState("");
+  const [reps, setReps] = useState("");
+  const [weight, setWeight] = useState("");
+  const [rx, setRx] = useState(true);
+  const [date, setDate] = useState(today);
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  function buildScore(): { value: number; display: string } | null {
+    if (scoreType === "time") {
+      const total = parseInt(mins || "0", 10) * 60 + parseInt(secs || "0", 10);
+      if (total <= 0) return null;
+      return { value: total, display: fmtSecs(total) };
+    }
+    if (scoreType === "weight") {
+      const w = parseFloat(weight);
+      if (isNaN(w) || w <= 0) return null;
+      return { value: w, display: `${w} kg` };
+    }
+    const r = parseInt(reps, 10);
+    if (isNaN(r) || r <= 0) return null;
+    return { value: r, display: `${r} reps` };
+  }
+
+  async function handleSubmit() {
+    setError(null);
+    const score = buildScore();
+    if (!score) { setError("Preenche o resultado antes de guardar."); return; }
+    if (!date || date > today) { setError("Escolhe uma data válida (não pode ser no futuro)."); return; }
+
+    setPending(true);
+    const res = await recordManualBenchmarkResult({
+      ...(benchmark.is_global ? { benchmark_slug: benchmark.slug } : { wod_id: benchmark.wod_id! }),
+      score_type: scoreType,
+      score_value: score.value,
+      score_display: score.display,
+      rx,
+      achieved_on: date,
+      notes: notes || undefined,
+    });
+    setPending(false);
+
+    if (res.error) { setError(res.error); return; }
+    onSaved(res.isPR ?? false);
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
+      className="overflow-hidden"
+    >
+      <div className="rounded-2xl border border-border bg-bg-card px-4 py-4 mb-6 space-y-4">
+        <p className="text-sm font-semibold text-text-primary">Registo manual</p>
+        <p className="text-xs text-text-tertiary -mt-2">
+          Fizeste este benchmark fora da box? Regista aqui o resultado para comparação futura.
+        </p>
+
+        {/* Score input */}
+        {scoreType === "time" && (
+          <div>
+            <p className="text-sm font-medium text-text-secondary mb-2">Tempo</p>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <FieldInput type="number" min={0} max={999} placeholder="00" value={mins} onChange={(e) => setMins(e.target.value)} />
+              </div>
+              <span className="text-xl font-semibold text-text-tertiary">:</span>
+              <div className="flex-1">
+                <FieldInput type="number" min={0} max={59} placeholder="00" value={secs} onChange={(e) => setSecs(e.target.value)} />
+              </div>
+              <span className="text-sm text-text-tertiary whitespace-nowrap">min : seg</span>
+            </div>
+          </div>
+        )}
+        {scoreType === "reps" && (
+          <FieldInput label="Reps" type="number" min={0} placeholder="0" value={reps} onChange={(e) => setReps(e.target.value)} />
+        )}
+        {scoreType === "weight" && (
+          <div>
+            <p className="text-sm font-medium text-text-secondary mb-2">Carga (kg)</p>
+            <FieldInput type="number" min={0} step={0.5} placeholder="0" value={weight} onChange={(e) => setWeight(e.target.value)} />
+          </div>
+        )}
+
+        {/* RX / Scaled */}
+        <div className="flex rounded-xl border border-border overflow-hidden">
+          <button type="button" onClick={() => setRx(true)}
+            className={cn("flex-1 py-2.5 text-sm font-semibold transition-colors", rx ? "bg-accent text-accent-fg" : "text-text-secondary hover:text-text-primary")}>RX</button>
+          <button type="button" onClick={() => setRx(false)}
+            className={cn("flex-1 py-2.5 text-sm font-medium transition-colors", !rx ? "bg-bg-input text-text-primary" : "text-text-secondary hover:text-text-primary")}>Scaled</button>
+        </div>
+
+        {/* Date */}
+        <div>
+          <label className="text-sm font-medium text-text-secondary">Data</label>
+          <input
+            type="date"
+            value={date}
+            max={today}
+            onChange={(e) => setDate(e.target.value)}
+            className="mt-1.5 w-full rounded-xl border border-border bg-bg-input px-4 py-3 text-sm text-text-primary outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+          />
+        </div>
+
+        {/* Notes */}
+        <div>
+          <label className="text-sm font-medium text-text-secondary">
+            Notas <span className="text-text-tertiary font-normal">(opcional)</span>
+          </label>
+          <textarea
+            value={notes} onChange={(e) => setNotes(e.target.value)}
+            rows={2} placeholder="Onde? Como correu?"
+            className="mt-1.5 w-full rounded-xl border border-border bg-bg-input px-4 py-3 text-sm text-text-primary placeholder:text-text-tertiary outline-none focus:ring-2 focus:ring-ring focus:border-transparent resize-none"
+          />
+        </div>
+
+        {error && <p className="text-sm text-error">{error}</p>}
+
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <PrimaryButton onClick={handleSubmit} loading={pending}>Guardar registo</PrimaryButton>
+          </div>
+          <div className="flex-1">
+            <PrimaryButton variant="secondary" onClick={onCancel} disabled={pending}>Cancelar</PrimaryButton>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 // ── PR History Drawer ──────────────────────────────────────────────────────
 
 function HistoryDrawer({ benchmark, onClose }: { benchmark: BenchmarkWithPr; onClose: () => void }) {
+  const router = useRouter();
   const [history, setHistory] = useState<ResultHistoryEntry[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [prBanner, setPrBanner] = useState(false);
 
-  useEffect(() => {
+  function loadHistory() {
     const params = benchmark.is_global
       ? { benchmarkSlug: benchmark.slug }
       : { wodId: benchmark.wod_id! };
-    getBenchmarkHistory(params).then((h) => {
+    return getBenchmarkHistory(params).then((h) => {
       setHistory(h);
       setLoading(false);
     });
+  }
+
+  useEffect(() => {
+    loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [benchmark.slug, benchmark.is_global, benchmark.wod_id]);
+
+  function handleManualSaved(isPR: boolean) {
+    setShowManualForm(false);
+    loadHistory();
+    router.refresh(); // updates PR values in the list behind the drawer
+    if (isPR) {
+      confetti({ particleCount: 140, spread: 90, origin: { y: 0.55 } });
+      setPrBanner(true);
+      setTimeout(() => setPrBanner(false), 2500);
+    }
+  }
 
   const currentPr = benchmark.pr_rx ?? benchmark.pr_scaled;
 
@@ -125,8 +313,47 @@ function HistoryDrawer({ benchmark, onClose }: { benchmark: BenchmarkWithPr; onC
           </div>
         )}
 
+        {/* PR celebration banner */}
+        <AnimatePresence>
+          {prBanner && (
+            <motion.div
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.3 }}
+              className="mb-4 rounded-2xl bg-amber-500/15 border border-amber-500/30 px-5 py-4 text-center"
+            >
+              <p className="text-2xl mb-1">🏆</p>
+              <p className="text-base font-semibold text-amber-600 dark:text-amber-400">Novo Personal Record!</p>
+              <p className="text-sm text-text-secondary mt-0.5">{benchmark.name}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Manual entry form */}
+        <AnimatePresence>
+          {showManualForm && (
+            <ManualEntryForm
+              benchmark={benchmark}
+              onSaved={handleManualSaved}
+              onCancel={() => setShowManualForm(false)}
+            />
+          )}
+        </AnimatePresence>
+
         {/* History */}
-        <p className="label-caps text-text-tertiary mb-3">Histórico</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="label-caps text-text-tertiary">Histórico</p>
+          {!showManualForm && (
+            <button
+              type="button"
+              onClick={() => setShowManualForm(true)}
+              className="rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-[11px] font-semibold text-accent transition-colors hover:bg-accent/20"
+            >
+              + Registo manual
+            </button>
+          )}
+        </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-10">
@@ -155,6 +382,9 @@ function HistoryDrawer({ benchmark, onClose }: { benchmark: BenchmarkWithPr; onC
                     )}
                     {!entry.rx && !entry.dnf && (
                       <span className="rounded-full bg-bg-input border border-border px-2 py-0.5 text-[10px] text-text-tertiary">Scaled</span>
+                    )}
+                    {entry.is_manual && (
+                      <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">Manual</span>
                     )}
                   </div>
                   {entry.notes && (
@@ -263,7 +493,7 @@ function PrRow({ benchmark, onClick }: { benchmark: BenchmarkWithPr; onClick: ()
 // ── Main ───────────────────────────────────────────────────────────────────
 
 const WOD_TYPES = ["AMRAP", "For Time", "For Load", "EMOM", "Tabata", "Custom"];
-const WOD_CATEGORIES = ["girls", "heroes", "notables", "games", "weightlifting"];
+const WOD_CATEGORIES = ["girls", "heroes", "notables", "games", "weightlifting", "endurance", "gymnastics"];
 
 interface Props {
   benchmarks: BenchmarkWithPr[];

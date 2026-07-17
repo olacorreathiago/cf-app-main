@@ -14,6 +14,8 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   athlete_removed: "Removido de uma aula",
   class_starting: "Aulas a começar",
   new_drop_in: "Novos drop-ins",
+  payment_received: "Pagamento recebido",
+  payment_overdue: "Pagamento em atraso",
 };
 
 const HAS_EMAIL: Record<NotificationType, boolean> = {
@@ -21,9 +23,13 @@ const HAS_EMAIL: Record<NotificationType, boolean> = {
   waitlist_promoted: true,
   new_post: false,
   athlete_removed: true,
-  class_starting: false,
-  new_drop_in: false,
+  class_starting: true,
+  new_drop_in: true,
+  payment_received: true,
+  payment_overdue: true,
 };
+
+const ALWAYS_IN_APP: Set<NotificationType> = new Set(["new_drop_in", "class_starting"]);
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -316,10 +322,16 @@ export function NotificationBell({
                   </p>
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-text-secondary">Notificação in-app</span>
+                      <span className="text-xs text-text-secondary">
+                        Notificação in-app
+                        {ALWAYS_IN_APP.has(p.type as NotificationType) && (
+                          <span className="ml-1 text-text-tertiary">(sempre ativo)</span>
+                        )}
+                      </span>
                       <Toggle
                         checked={p.in_app}
                         onChange={(v) => handlePrefToggle(p.type as NotificationType, "in_app", v)}
+                        disabled={ALWAYS_IN_APP.has(p.type as NotificationType)}
                       />
                     </div>
                     {HAS_EMAIL[p.type as NotificationType] && (

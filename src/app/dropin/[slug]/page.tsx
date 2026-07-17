@@ -15,7 +15,7 @@ export default async function DropInPublicPage({ params }: Props) {
 
   const { data: box } = await supabaseAdmin
     .from("boxes")
-    .select("id, name, slug, logo_url, drop_in_enabled, drop_in_price")
+    .select("id, name, slug, logo_url, drop_in_enabled, drop_in_price, payment_instructions")
     .eq("slug", slug)
     .single();
 
@@ -74,6 +74,7 @@ export default async function DropInPublicPage({ params }: Props) {
     .order("starts_at");
 
   const dropInPrice = (box as unknown as { drop_in_price: number | null }).drop_in_price;
+  const paymentInstructions = (box as unknown as { payment_instructions: string | null }).payment_instructions;
 
   return (
     <main className="flex min-h-screen items-start justify-center bg-bg-base px-4 py-12">
@@ -108,6 +109,8 @@ export default async function DropInPublicPage({ params }: Props) {
           prefill={prefill}
           isLoggedIn={!!user}
           upcomingClasses={upcomingClasses ?? []}
+          dropInPrice={dropInPrice}
+          paymentInstructions={paymentInstructions}
         />
       </div>
     </main>

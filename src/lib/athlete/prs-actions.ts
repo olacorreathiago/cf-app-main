@@ -38,6 +38,7 @@ export interface ResultHistoryEntry {
   class_date: string | null; // starts_at of the class — preferred display date
   box_name: string | null;
   is_pr: boolean;
+  is_manual: boolean; // registered outside a class (e.g. at home)
 }
 
 export interface AthletePrsData {
@@ -80,7 +81,7 @@ export async function getAthletePrsData(): Promise<AthletePrsData> {
   if (!activeBoxId) {
     const { data: allBenchmarkWods } = await supabase
       .from("benchmark_wods")
-      .select("slug, name, category, type, description")
+      .select("slug, name, category, type, score_type, description")
       .order("name");
     const globalSlugs = (allBenchmarkWods ?? []).map((b) => b.slug);
     const { data: globalPrs } = globalSlugs.length > 0
@@ -101,7 +102,7 @@ export async function getAthletePrsData(): Promise<AthletePrsData> {
     }
     const benchmarks: BenchmarkWithPr[] = (allBenchmarkWods ?? []).map((b) => {
       const prData = globalPrMap[b.slug] ?? { rx: null, scaled: null };
-      return { wod_id: null, slug: b.slug, name: b.name, category: b.category ?? "original", wod_type: b.type, score_type: null, description: b.description, is_global: true, pr_rx: prData.rx, pr_scaled: prData.scaled };
+      return { wod_id: null, slug: b.slug, name: b.name, category: b.category ?? "original", wod_type: b.type, score_type: b.score_type ?? null, description: b.description, is_global: true, pr_rx: prData.rx, pr_scaled: prData.scaled };
     });
     return { activeBoxId: "", benchmarks };
   }
@@ -109,7 +110,7 @@ export async function getAthletePrsData(): Promise<AthletePrsData> {
   // ── 1. All global benchmarks (always visible, regardless of box WODs) ──
   const { data: allBenchmarkWods } = await supabase
     .from("benchmark_wods")
-    .select("slug, name, category, type, description")
+    .select("slug, name, category, type, score_type, description")
     .order("name");
 
   // ── 2. Box WODs that are custom benchmarks (no benchmark_slug, is_benchmark=true, published) ──
@@ -183,7 +184,7 @@ export async function getAthletePrsData(): Promise<AthletePrsData> {
       name: b.name,
       category: b.category ?? "original",
       wod_type: b.type,
-      score_type: linkedWod?.score_type ?? null,
+      score_type: linkedWod?.score_type ?? b.score_type ?? null,
       description: b.description,
       is_global: true,
       pr_rx: prData.rx,
@@ -217,7 +218,7 @@ export async function getBenchmarkHistory(params: { benchmarkSlug: string } | { 
 
   let results;
 
-  const selectFields = "id, class_id, score_display, score_value, rx, dnf, notes, recorded_at, box_id";
+  const selectFields = "id, class_id, score_display, score_value, rx, dnf, notes, recorded_at, box_id, is_manual";
 
   if ("benchmarkSlug" in params) {
     const { data: wods } = await supabase
@@ -225,14 +226,27 @@ export async function getBenchmarkHistory(params: { benchmarkSlug: string } | { 
       .select("id")
       .eq("benchmark_slug", params.benchmarkSlug);
     const wodIds = (wods ?? []).map((w) => w.id);
-    if (wodIds.length === 0) return [];
 
-    ({ data: results } = await supabase
-      .from("wod_results")
-      .select(selectFields)
-      .eq("user_id", user.id)
-      .in("wod_id", wodIds)
-      .order("recorded_at", { ascending: false }));
+    // Class results (via linked box WODs) + manual entries (benchmark_slug direct)
+    const [classRes, manualRes] = await Promise.all([
+      wodIds.length > 0
+        ? supabase
+            .from("wod_results")
+            .select(selectFields)
+            .eq("user_id", user.id)
+            .in("wod_id", wodIds)
+        : Promise.resolve({ data: [] as never[] }),
+      supabase
+        .from("wod_results")
+        .select(selectFields)
+        .eq("user_id", user.id)
+        .eq("benchmark_slug", params.benchmarkSlug)
+        .is("wod_id", null),
+    ]);
+
+    results = [...(classRes.data ?? []), ...(manualRes.data ?? [])].sort(
+      (a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime()
+    );
   } else {
     ({ data: results } = await supabase
       .from("wod_results")
@@ -274,5 +288,6 @@ export async function getBenchmarkHistory(params: { benchmarkSlug: string } | { 
     class_date: r.class_id ? (classDateMap.get(r.class_id) ?? null) : null,
     box_name: r.box_id ? (boxNameMap.get(r.box_id) ?? null) : null,
     is_pr: prSet.has(r.id),
+    is_manual: (r as { is_manual?: boolean }).is_manual ?? false,
   }));
 }

@@ -69,6 +69,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           enableSystem
           disableTransitionOnChange
         >
+          {/* App-wide page filter (film grain + light sweep) from the Figma
+              design — same treatment as the auth screens, across every page. */}
+          <div aria-hidden className="pointer-events-none fixed inset-0 bg-cover bg-center filter-page" />
           {children}
           <Toaster
             position="bottom-center"

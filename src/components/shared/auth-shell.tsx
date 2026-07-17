@@ -126,10 +126,16 @@ export function AuthCenteredShell({
 export function AuthSplitShell({
   children,
   backHref,
+  heroTitle,
+  heroSubtitle,
 }: {
   /** Right-hand form content. */
   children: React.ReactNode;
   backHref?: string;
+  /** Hero headline. Defaults to the onboarding tagline. */
+  heroTitle?: React.ReactNode;
+  /** Hero supporting copy. Defaults to the product blurb. */
+  heroSubtitle?: React.ReactNode;
 }) {
   return (
     <div className="lg:grid lg:min-h-[100svh] lg:grid-cols-2">
@@ -137,13 +143,17 @@ export function AuthSplitShell({
       <aside className="relative hidden lg:flex lg:flex-col lg:justify-center lg:px-16 xl:px-20">
         <AppLogo size="xl" />
         <h2 className="mt-8 font-display text-[clamp(3.25rem,5.5vw,5rem)] uppercase leading-[0.88] text-white">
-          Treina.<br />
-          Evolui.<br />
-          Supera.
+          {heroTitle ?? (
+            <>
+              Treina.<br />
+              Evolui.<br />
+              Supera.
+            </>
+          )}
         </h2>
         <p className="mt-6 max-w-sm text-base leading-relaxed text-white/45">
-          Com o Zekko tens a gestão completa para boxes de CrossFit. Aulas,
-          WODs, métricas e comunidade — tudo num só lugar.
+          {heroSubtitle ??
+            "Com o Zekko tens a gestão completa para boxes de CrossFit. Aulas, WODs, métricas e comunidade — tudo num só lugar."}
         </p>
         {/* vertical divider */}
         <span

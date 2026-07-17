@@ -2,6 +2,7 @@
 
 import { supabaseServer } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { evaluatePR } from "./pr-eval";
 import type { WodResultInput } from "@/schemas/wod-result";
 
 export interface RecordResultResponse {
@@ -11,88 +12,41 @@ export interface RecordResultResponse {
   prMovement?: string;
 }
 
-function isBetterScore(unit: string, newValue: number, existingValue: number): boolean {
-  // seconds = lower is better; everything else (reps, kg, lb) = higher is better
-  if (unit === "seconds") return newValue < existingValue;
-  return newValue > existingValue;
-}
+// ── Check-in enforcement ───────────────────────────────────────────────────
+// An athlete may only register a class result if the coach confirmed their
+// presence (bookings.attended = true). Absent / unmarked athletes are blocked.
 
-function prUnit(scoreType: string, dnf: boolean): string {
-  // DNF on a time-based WOD → score is reps completed, not seconds
-  if (dnf && scoreType === "time") return "reps";
-  if (scoreType === "time") return "seconds";
-  if (scoreType === "weight") return "kg";
-  return "reps";
-}
+const NO_CHECKIN_ERROR = "Sem check-in confirmado nesta aula — pede ao coach para marcar a tua presença.";
 
-// ── Shared PR evaluation ───────────────────────────────────────────────────
-
-async function evaluatePR(
+async function hasConfirmedCheckin(
   supabase: Awaited<ReturnType<typeof supabaseServer>>,
-  params: {
-    userId: string;
-    resultId: string;
-    classDate: string | null; // starts_at of the class — used as achieved_at on the PR
-    wodBenchmarkSlug: string | null;
-    wodTitle: string;
-    wodIsBenchmark: boolean;
-    scoreType: string;
-    scoreValue: number;
-    rx: boolean;
-    dnf: boolean;
-    boxId: string;
+  userId: string,
+  params: { classId: string | null; wodId: string; boxId: string }
+): Promise<boolean> {
+  const { classId, wodId, boxId } = params;
+
+  // Resolve the classes this result can belong to
+  let classIds: string[];
+  if (classId) {
+    classIds = [classId];
+  } else {
+    // Legacy path (no class_id): any class of the box containing this WOD
+    const { data: classes } = await supabase
+      .from("classes")
+      .select("id")
+      .eq("box_id", boxId)
+      .contains("wod_ids", [wodId]);
+    classIds = (classes ?? []).map((c) => c.id);
+    if (classIds.length === 0) return false;
   }
-): Promise<{ isPR: boolean }> {
-  const { userId, resultId, classDate, wodBenchmarkSlug, wodTitle, wodIsBenchmark, scoreType, scoreValue, rx, dnf, boxId } = params;
 
-  const dnfFlag = dnf ?? false;
-  const supportsPR = wodIsBenchmark && ["time", "reps", "weight", "round-reps"].includes(scoreType);
-  if (!supportsPR) return { isPR: false };
-
-  const unit = prUnit(scoreType, dnfFlag);
-  const isGlobal = !!wodBenchmarkSlug;
-  const movement = wodBenchmarkSlug ?? wodTitle;
-
-  const baseQuery = supabase
-    .from("prs")
-    .select("id, value")
+  const { data: bookings } = await supabase
+    .from("bookings")
+    .select("class_id, status, attended")
     .eq("user_id", userId)
-    .eq("unit", unit)
-    .eq("rx", rx)
-    .eq("movement", movement);
+    .in("class_id", classIds);
 
-  const scopedQuery = isGlobal
-    ? baseQuery.is("box_id", null).eq("benchmark_slug", wodBenchmarkSlug!)
-    : baseQuery.eq("box_id", boxId).is("benchmark_slug", null);
-
-  const { data: existingPR } = await scopedQuery.maybeSingle();
-
-  const achievedAt = classDate ?? new Date().toISOString();
-  const prPayload = isGlobal
-    ? { user_id: userId, box_id: null as null, benchmark_slug: wodBenchmarkSlug, movement, value: scoreValue, unit, rx, achieved_at: achievedAt, wod_result_id: resultId }
-    : { user_id: userId, box_id: boxId, benchmark_slug: null as null, movement, value: scoreValue, unit, rx, achieved_at: achievedAt, wod_result_id: resultId };
-
-  if (!existingPR) {
-    const { error } = await supabase.from("prs").insert(prPayload);
-    if (error) {
-      console.error("[PR insert error]", error.message);
-      return { isPR: false };
-    }
-    return { isPR: true };
-  }
-
-  if (isBetterScore(unit, scoreValue, existingPR.value)) {
-    const { error } = await supabase.from("prs")
-      .update({ value: scoreValue, achieved_at: achievedAt, wod_result_id: resultId })
-      .eq("id", existingPR.id);
-    if (error) {
-      console.error("[PR update error]", error.message);
-      return { isPR: false };
-    }
-    return { isPR: true };
-  }
-
-  return { isPR: false };
+  return (bookings ?? []).some((b) => b.status === "confirmed" && b.attended === true);
 }
 
 // ── Record new result ──────────────────────────────────────────────────────
@@ -109,6 +63,13 @@ export async function recordWodResult(input: WodResultInput): Promise<RecordResu
     .single();
 
   if (!wod) return { error: "WOD não encontrado." };
+
+  const checkedIn = await hasConfirmedCheckin(supabase, user.id, {
+    classId: input.class_id ?? null,
+    wodId: input.wod_id,
+    boxId: input.box_id,
+  });
+  if (!checkedIn) return { error: NO_CHECKIN_ERROR };
 
   const { data: result, error: insertError } = await supabase
     .from("wod_results")
@@ -183,6 +144,13 @@ export async function updateWodResult(input: UpdateResultInput): Promise<RecordR
     .single();
 
   if (!wod) return { error: "WOD não encontrado." };
+
+  const checkedIn = await hasConfirmedCheckin(supabase, user.id, {
+    classId: input.class_id ?? null,
+    wodId: input.wod_id,
+    boxId: input.box_id,
+  });
+  if (!checkedIn) return { error: NO_CHECKIN_ERROR };
 
   const { error: updateError } = await supabase
     .from("wod_results")

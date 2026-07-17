@@ -22,6 +22,8 @@ const CATEGORY_LABEL: Record<string, string> = {
   notables: "Notables",
   games: "Games",
   weightlifting: "Weightlifting",
+  endurance: "Endurance",
+  gymnastics: "Gymnastics",
   original: "Original",
 };
 

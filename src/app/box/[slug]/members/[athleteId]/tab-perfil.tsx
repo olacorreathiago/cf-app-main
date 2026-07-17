@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { suspendMember, reactivateMember, removeMember, changeRole, updateMemberNotes } from "@/lib/box/member-actions";
+import { assignPlan, type Plan } from "@/lib/box/plan-actions";
 import { useRouter } from "next/navigation";
 
 interface Profile {
@@ -18,6 +19,7 @@ interface Membership {
   role: string;
   status: string;
   notes: string | null;
+  plan_id: string | null;
   created_at: string;
 }
 
@@ -28,6 +30,7 @@ interface Props {
   profile: Profile;
   viewerRole: string;
   roleLabel: Record<string, string>;
+  plans: Plan[];
 }
 
 const ASSIGNABLE_ROLES: Record<string, string[]> = {
@@ -36,12 +39,14 @@ const ASSIGNABLE_ROLES: Record<string, string[]> = {
   manager: ["coach", "athlete"],
 };
 
-export function TabPerfil({ slug, boxId, membership, profile, viewerRole, roleLabel }: Props) {
+export function TabPerfil({ slug, boxId, membership, profile, viewerRole, roleLabel, plans }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [notes, setNotes] = useState(membership.notes ?? "");
   const [editingNotes, setEditingNotes] = useState(false);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
+  const [showPlanMenu, setShowPlanMenu] = useState(false);
+  const [currentPlanId, setCurrentPlanId] = useState<string | null>(membership.plan_id);
 
   const canAct = membership.role !== "owner" && viewerRole !== "athlete" && viewerRole !== "coach";
   const assignable = (ASSIGNABLE_ROLES[viewerRole] ?? []).filter((r) => r !== membership.role);
@@ -144,6 +149,80 @@ export function TabPerfil({ slug, boxId, membership, profile, viewerRole, roleLa
           />
         </div>
       </section>
+
+      {/* Plano */}
+      {membership.role === "athlete" && (
+        <section className="space-y-2">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-text-tertiary">
+            Plano
+          </h2>
+          <div className="rounded-2xl border border-border bg-bg-card divide-y divide-border">
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-sm text-text-tertiary">Plano atual</span>
+              <div className="relative flex items-center gap-2">
+                <span className="text-sm font-medium text-text-primary">
+                  {currentPlanId ? plans.find((p) => p.id === currentPlanId)?.name ?? "—" : "Sem plano"}
+                </span>
+                {canAct && (
+                  <button
+                    onClick={() => setShowPlanMenu((v) => !v)}
+                    className="text-xs text-accent hover:underline underline-offset-4"
+                  >
+                    Alterar
+                  </button>
+                )}
+                {showPlanMenu && (
+                  <div className="absolute right-0 top-8 z-20 w-48 rounded-xl border border-border bg-bg-card shadow-lg py-1">
+                    <button
+                      onClick={() => {
+                        setShowPlanMenu(false);
+                        setCurrentPlanId(null);
+                        startTransition(async () => {
+                          const res = await assignPlan(membership.id, null, boxId, slug);
+                          if (res.error) { toast.error(res.error); setCurrentPlanId(membership.plan_id); }
+                          else { toast.success("Plano removido."); router.refresh(); }
+                        });
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-text-tertiary hover:bg-bg-input transition-colors"
+                    >
+                      Sem plano
+                    </button>
+                    {plans.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          setShowPlanMenu(false);
+                          setCurrentPlanId(p.id);
+                          startTransition(async () => {
+                            const res = await assignPlan(membership.id, p.id, boxId, slug);
+                            if (res.error) { toast.error(res.error); setCurrentPlanId(membership.plan_id); }
+                            else { toast.success(`Plano alterado para ${p.name}.`); router.refresh(); }
+                          });
+                        }}
+                        className={`w-full px-3 py-2 text-left text-sm hover:bg-bg-input transition-colors ${
+                          currentPlanId === p.id ? "text-accent font-medium" : "text-text-primary"
+                        }`}
+                      >
+                        {p.name} · {p.price.toFixed(2)} €/{p.billing_interval === "monthly" ? "mês" : "ano"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            {currentPlanId && (() => {
+              const plan = plans.find((p) => p.id === currentPlanId);
+              if (!plan) return null;
+              return (
+                <>
+                  <FieldRow label="Preço" value={`${plan.price.toFixed(2)} €/${plan.billing_interval === "monthly" ? "mês" : "ano"}`} />
+                  <FieldRow label="Aulas/semana" value={plan.classes_per_week ? String(plan.classes_per_week) : "Ilimitadas"} />
+                </>
+              );
+            })()}
+          </div>
+        </section>
+      )}
 
       {/* Notas internas */}
       <section className="space-y-2">

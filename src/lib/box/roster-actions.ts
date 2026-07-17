@@ -28,10 +28,20 @@ export interface TrialRosterEntry {
   name: string;
 }
 
+export interface DropInRosterEntry {
+  id: string;
+  name: string;
+  nickname: string | null;
+  email: string | null;
+  status: string;
+  checked_in: boolean;
+}
+
 export interface ClassRoster {
   attendees: RosterAttendee[];
   availableMembers: BoxMemberOption[];
   trials: TrialRosterEntry[];
+  dropIns: DropInRosterEntry[];
 }
 
 export async function getClassRoster(classId: string, boxId: string): Promise<ClassRoster> {
@@ -89,7 +99,23 @@ export async function getClassRoster(classId: string, boxId: string): Promise<Cl
 
   const trials: TrialRosterEntry[] = (trialsData ?? []).map((t) => ({ id: t.id, name: t.name }));
 
-  return { attendees, availableMembers, trials };
+  // Drop-ins associados a esta aula
+  const { data: dropInsData } = await supabaseAdmin
+    .from("drop_ins")
+    .select("id, name, nickname, email, status, checked_in")
+    .eq("class_id", classId)
+    .neq("status", "cancelled");
+
+  const dropIns: DropInRosterEntry[] = (dropInsData ?? []).map((d) => ({
+    id: d.id,
+    name: d.name ?? "Drop-in",
+    nickname: d.nickname,
+    email: d.email,
+    status: d.status,
+    checked_in: d.checked_in ?? false,
+  }));
+
+  return { attendees, availableMembers, trials, dropIns };
 }
 
 export async function addAthleteToClass(

@@ -20,7 +20,9 @@ export interface NotificationPreference {
   email: boolean;
 }
 
-const ALL_TYPES: NotificationType[] = ["class_cancelled", "waitlist_promoted", "new_post", "athlete_removed"];
+const BASE_TYPES: NotificationType[] = ["class_cancelled", "waitlist_promoted", "new_post", "athlete_removed"];
+const STAFF_TYPES: NotificationType[] = ["new_drop_in", "class_starting"];
+const STAFF_ALWAYS_IN_APP: Set<NotificationType> = new Set(["new_drop_in", "class_starting"]);
 
 export async function getUnreadCount(userId: string, boxId: string): Promise<number> {
   const supabase = await supabaseServer();
@@ -64,17 +66,28 @@ export async function getPreferences(
   userId: string,
   boxId: string
 ): Promise<NotificationPreference[]> {
-  const { data } = await supabaseAdmin
+  const { data: savedRows } = await supabaseAdmin
     .from("notification_preferences")
     .select("type, in_app, email")
     .eq("user_id", userId)
     .eq("box_id", boxId);
 
-  const saved = new Map((data ?? []).map((r) => [r.type, r]));
+  const saved = new Map((savedRows ?? []).map((r) => [r.type, r]));
 
-  return ALL_TYPES.map((type) => ({
+  const { data: membership } = await supabaseAdmin
+    .from("memberships")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("box_id", boxId)
+    .in("role", ["owner", "partner", "manager", "coach"])
+    .maybeSingle();
+
+  const isStaff = !!membership;
+  const types = [...BASE_TYPES, ...(isStaff ? STAFF_TYPES : [])];
+
+  return types.map((type) => ({
     type,
-    in_app: saved.get(type)?.in_app ?? true,
+    in_app: STAFF_ALWAYS_IN_APP.has(type) ? true : (saved.get(type)?.in_app ?? true),
     email: saved.get(type)?.email ?? true,
   }));
 }

@@ -12,6 +12,9 @@ import {
   type DropIn,
   type DropInStatus,
 } from "@/lib/box/drop-in-actions";
+import { markPaymentPaid, recordPayment } from "@/lib/payments/actions";
+import type { PaymentMethod } from "@/lib/payments/types";
+import type { DropInPaymentMap } from "../members/members-with-tabs";
 import { APP_CONFIG } from "@/lib/config";
 
 type UpcomingClass = { id: string; name: string; starts_at: string; capacity: number };
@@ -30,22 +33,34 @@ const statusColor: Record<DropInStatus, string> = {
   cancelled: "bg-error/10 text-error",
 };
 
+const METHOD_LABELS: Record<string, string> = {
+  cash: "Dinheiro",
+  mbway: "MB Way",
+  transferencia: "Transferência",
+  multibanco: "Multibanco",
+  card: "Cartão",
+};
+
 interface Props {
   dropIns: DropIn[];
+  dropInPayments: DropInPaymentMap;
   boxId: string;
   slug: string;
   dropInPrice: number | null;
   upcomingClasses: UpcomingClass[];
 }
 
-export function DropInsClient({ dropIns: initial, boxId, slug, dropInPrice, upcomingClasses }: Props) {
+export function DropInsClient({ dropIns: initial, dropInPayments: initialPayments, boxId, slug, dropInPrice, upcomingClasses }: Props) {
   const [dropIns, setDropIns] = useState<DropIn[]>(initial);
+  const [payments, setPayments] = useState<DropInPaymentMap>(initialPayments);
   const [filter, setFilter] = useState<Filter>("all");
   const [showForm, setShowForm] = useState(false);
   const [showLink, setShowLink] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [notesValue, setNotesValue] = useState("");
+  const [payingDropInId, setPayingDropInId] = useState<string | null>(null);
+  const [payMethod, setPayMethod] = useState<PaymentMethod>("cash");
   const [isPending, startTransition] = useTransition();
 
   const filtered = filter === "all" ? dropIns : dropIns.filter((d) => d.status === filter);
@@ -88,6 +103,22 @@ export function DropInsClient({ dropIns: initial, boxId, slug, dropInPrice, upco
       setDropIns((prev) => prev.filter((d) => d.id !== dropInId));
       if (expandedId === dropInId) setExpandedId(null);
       toast.success("Drop-in eliminado.");
+    });
+  }
+
+  function handleMarkPayment(dropInId: string) {
+    const pay = payments[dropInId];
+    setPayingDropInId(null);
+    if (!pay) return;
+    setPayments((prev) => ({ ...prev, [dropInId]: { ...prev[dropInId], status: "paid" } }));
+    startTransition(async () => {
+      try {
+        await markPaymentPaid({ payment_id: pay.id, box_id: boxId, method: payMethod, slug });
+        toast.success("Pagamento registado.");
+      } catch {
+        toast.error("Erro ao registar pagamento.");
+        setPayments((prev) => ({ ...prev, [dropInId]: { ...prev[dropInId], status: "pending" } }));
+      }
     });
   }
 
@@ -220,8 +251,11 @@ export function DropInsClient({ dropIns: initial, boxId, slug, dropInPrice, upco
             <DropInRow
               key={dropIn.id}
               dropIn={dropIn}
+              payment={payments[dropIn.id] ?? null}
               isExpanded={expandedId === dropIn.id}
               isEditingNotes={editingNotesId === dropIn.id}
+              isPayingThis={payingDropInId === dropIn.id}
+              payMethod={payMethod}
               notesValue={notesValue}
               isPending={isPending}
               onToggleExpand={() => {
@@ -235,6 +269,10 @@ export function DropInsClient({ dropIns: initial, boxId, slug, dropInPrice, upco
               onNotesChange={setNotesValue}
               onSaveNotes={() => handleSaveNotes(dropIn.id)}
               onDelete={() => handleDelete(dropIn.id)}
+              onOpenPayment={() => { setPayingDropInId(dropIn.id); setPayMethod("cash"); }}
+              onCancelPayment={() => setPayingDropInId(null)}
+              onPayMethodChange={setPayMethod}
+              onConfirmPayment={() => handleMarkPayment(dropIn.id)}
             />
           ))}
         </ul>
@@ -264,8 +302,11 @@ export function DropInsClient({ dropIns: initial, boxId, slug, dropInPrice, upco
 
 interface RowProps {
   dropIn: DropIn;
+  payment: { id: string; status: string; amount: number } | null;
   isExpanded: boolean;
   isEditingNotes: boolean;
+  isPayingThis: boolean;
+  payMethod: PaymentMethod;
   notesValue: string;
   isPending: boolean;
   onToggleExpand: () => void;
@@ -276,14 +317,21 @@ interface RowProps {
   onNotesChange: (v: string) => void;
   onSaveNotes: () => void;
   onDelete: () => void;
+  onOpenPayment: () => void;
+  onCancelPayment: () => void;
+  onPayMethodChange: (m: PaymentMethod) => void;
+  onConfirmPayment: () => void;
 }
 
 function DropInRow({
-  dropIn, isExpanded, isEditingNotes, notesValue, isPending,
+  dropIn, payment, isExpanded, isEditingNotes, isPayingThis, payMethod, notesValue, isPending,
   onToggleExpand, onConfirm, onCancel, onEditNotes, onCancelNotes, onNotesChange, onSaveNotes, onDelete,
+  onOpenPayment, onCancelPayment, onPayMethodChange, onConfirmPayment,
 }: RowProps) {
   const displayName = dropIn.name ?? dropIn.email ?? "Drop-in";
   const isPending2 = dropIn.status === "pending";
+  const paymentPending = payment && payment.status === "pending";
+  const paymentPaid = payment && payment.status === "paid";
 
   return (
     <li className={`rounded-2xl border overflow-hidden ${isPending2 ? "border-warning/40 bg-warning/5" : "border-border bg-bg-card"}`}>
@@ -300,9 +348,21 @@ function DropInRow({
             {dropIn.email ?? dropIn.date}
           </p>
         </div>
-        <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor[dropIn.status]}`}>
-          {statusLabel[dropIn.status]}
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor[dropIn.status]}`}>
+            {statusLabel[dropIn.status]}
+          </span>
+          {paymentPaid && (
+            <span className="rounded-full px-2.5 py-0.5 text-[10px] font-medium bg-accent/10 text-accent">
+              Pago
+            </span>
+          )}
+          {paymentPending && (
+            <span className="rounded-full px-2.5 py-0.5 text-[10px] font-medium bg-warning/10 text-warning">
+              Pag. pendente
+            </span>
+          )}
+        </div>
         <svg
           width="14" height="14" viewBox="0 0 14 14" fill="none"
           className={`shrink-0 text-text-tertiary transition-transform ${isExpanded ? "rotate-180" : ""}`}
@@ -344,13 +404,79 @@ function DropInRow({
                   <p className="text-text-tertiary mb-0.5">Data</p>
                   <p className="text-text-primary">{new Date(dropIn.date).toLocaleDateString("pt-PT")}</p>
                 </div>
-                {dropIn.amount_paid != null && (
+                {payment && (
                   <div>
-                    <p className="text-text-tertiary mb-0.5">Pago</p>
-                    <p className="text-text-primary">{dropIn.amount_paid.toFixed(2)} €</p>
+                    <p className="text-text-tertiary mb-0.5">Valor</p>
+                    <p className="text-text-primary">{payment.amount.toFixed(2)} €</p>
                   </div>
                 )}
               </div>
+
+              {/* Payment section */}
+              {paymentPending && (
+                <div className="rounded-xl border border-warning/20 bg-warning/5 p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-warning">Pagamento pendente — {payment!.amount.toFixed(2)} €</span>
+                    {!isPayingThis && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onOpenPayment(); }}
+                        className="rounded-lg bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent transition-colors hover:bg-accent/20"
+                      >
+                        Registar pagamento
+                      </button>
+                    )}
+                  </div>
+                  <AnimatePresence>
+                    {isPayingThis && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="space-y-2.5 pt-1">
+                          <p className="text-xs font-medium text-text-secondary">Método de pagamento</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(["cash", "mbway", "transferencia", "multibanco", "card"] as PaymentMethod[]).map((m) => (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => onPayMethodChange(m)}
+                                className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                                  payMethod === m
+                                    ? "bg-accent text-black"
+                                    : "bg-bg-card border border-border text-text-secondary hover:text-text-primary"
+                                }`}
+                              >
+                                {METHOD_LABELS[m]}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={onConfirmPayment}
+                              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-black disabled:opacity-50"
+                            >
+                              Confirmar pagamento
+                            </button>
+                            <button
+                              type="button"
+                              onClick={onCancelPayment}
+                              className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
 
               {/* Notes */}
               <div>

@@ -20,6 +20,8 @@ type Trial = {
 
 type UpcomingClass = { id: string; name: string; starts_at: string; capacity: number };
 
+export type DropInPaymentMap = Record<string, { id: string; status: string; amount: number }>;
+
 interface Props {
   slug: string;
   boxId: string;
@@ -31,6 +33,7 @@ interface Props {
   pendingInvites: Invite[];
   trials: Trial[];
   dropIns: DropIn[];
+  dropInPayments: DropInPaymentMap;
   dropInEnabled: boolean;
   dropInPrice: number | null;
   upcomingClasses: UpcomingClass[];
@@ -40,7 +43,7 @@ type Tab = "members" | "trials" | "drop-ins";
 
 export function MembersWithTabs({
   slug, boxId, boxName, viewerRole, canInvite, joinToken,
-  activeMembers, pendingInvites, trials, dropIns, dropInEnabled, dropInPrice, upcomingClasses,
+  activeMembers, pendingInvites, trials, dropIns, dropInPayments, dropInEnabled, dropInPrice, upcomingClasses,
 }: Props) {
   const [tab, setTab] = useState<Tab>("members");
 
@@ -153,6 +156,7 @@ export function MembersWithTabs({
       {tab === "drop-ins" && (
         <DropInsClient
           dropIns={dropIns}
+          dropInPayments={dropInPayments}
           boxId={boxId}
           slug={slug}
           dropInPrice={dropInPrice}

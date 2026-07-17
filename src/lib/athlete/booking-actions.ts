@@ -50,6 +50,39 @@ export async function bookClass(
     return { error: `Só podes reservar com ${advanceDays} dias de antecedência.` };
   }
 
+  // Enforce classes_per_week limit from the athlete's plan
+  const { data: membership } = await supabase
+    .from("memberships")
+    .select("plan_id, plans(classes_per_week)")
+    .eq("user_id", user.id)
+    .eq("box_id", cls.box_id)
+    .eq("status", "active")
+    .maybeSingle();
+
+  const planLimit = (membership?.plans as unknown as { classes_per_week: number | null } | null)?.classes_per_week;
+  if (planLimit != null) {
+    const classDate = new Date(cls.starts_at);
+    const dayOfWeek = classDate.getUTCDay();
+    const weekStart = new Date(classDate);
+    weekStart.setUTCDate(classDate.getUTCDate() - ((dayOfWeek + 6) % 7)); // Monday
+    weekStart.setUTCHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setUTCDate(weekStart.getUTCDate() + 7);
+
+    const { count: weekBookings } = await supabase
+      .from("bookings")
+      .select("id, classes!inner(starts_at, box_id)", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "confirmed")
+      .eq("classes.box_id", cls.box_id)
+      .gte("classes.starts_at", weekStart.toISOString())
+      .lt("classes.starts_at", weekEnd.toISOString());
+
+    if ((weekBookings ?? 0) >= planLimit) {
+      return { error: `O teu plano permite apenas ${planLimit} aula${planLimit > 1 ? "s" : ""} por semana.` };
+    }
+  }
+
   const counts = await supabase.rpc("get_class_booking_counts", {
     p_class_ids: [classId],
   });

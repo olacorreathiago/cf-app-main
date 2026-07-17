@@ -5,6 +5,7 @@ import { ProfileForm } from "./profile-form";
 import { ProfileCompletion } from "./profile-completion";
 import { AvatarUpload } from "./avatar-upload";
 import { signOut } from "@/app/dashboard/actions";
+import { getMyPayments } from "@/lib/payments/actions";
 
 export const metadata: Metadata = { title: "Perfil" };
 import { format } from "date-fns";
@@ -32,9 +33,11 @@ export default async function AthleteProfilePage() {
   const supabase = await supabaseServer();
   const { data: memberships } = await supabase
     .from("memberships")
-    .select("role, status, created_at, boxes(name, slug)")
+    .select("role, status, plan_id, created_at, boxes(name, slug), plans:plan_id(name, price, billing_interval)")
     .eq("user_id", profile.id)
     .order("created_at");
+
+  const payments = await getMyPayments().catch(() => []);
 
   const memberSince = format(new Date(profile.created_at), "MMMM 'de' yyyy", { locale: pt });
   const displayName = profile.nickname ?? profile.full_name ?? profile.email;
@@ -70,6 +73,81 @@ export default async function AthleteProfilePage() {
           <ProfileForm profile={profile} />
         </div>
       </section>
+
+      {/* O meu plano */}
+      {memberships && (() => {
+        const athleteBoxes = memberships.filter(
+          (m) => m.role === "athlete" && (m as unknown as { plan_id: string | null }).plan_id
+        );
+        if (athleteBoxes.length === 0) return null;
+
+        return (
+          <section className="space-y-3">
+            <p className="label-caps text-text-tertiary">O meu plano</p>
+            <div className="space-y-3">
+              {athleteBoxes.map((m) => {
+                const box = m.boxes as unknown as { name: string; slug: string } | null;
+                const plan = (m as unknown as { plans: { name: string; price: number; billing_interval: string } | null }).plans;
+                if (!box || !plan) return null;
+
+                const memberPayments = (payments ?? [])
+                  .filter((p: { kind: string; box_id: string | null; status: string }) =>
+                    p.kind === "membership" &&
+                    p.box_id === (m as unknown as { boxes: { slug: string } }).boxes?.slug // not accurate, use box matching
+                  );
+
+                const recentPayments = (payments ?? [])
+                  .filter((p: { kind: string; status: string; period_start: string | null; boxes?: { slug: string } | null }) => {
+                    const pBoxes = (p as unknown as { boxes: { slug: string } | null }).boxes;
+                    return p.kind === "membership" && pBoxes?.slug === box.slug;
+                  })
+                  .slice(0, 6);
+
+                return (
+                  <div key={box.slug} className="rounded-2xl border border-border bg-bg-card p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-text-tertiary">{box.name}</p>
+                        <p className="text-base font-semibold text-text-primary">{plan.name}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-text-primary tabular-nums">{plan.price.toFixed(2)} €</p>
+                        <p className="text-xs text-text-tertiary">/{plan.billing_interval === "monthly" ? "mês" : "ano"}</p>
+                      </div>
+                    </div>
+
+                    {recentPayments.length > 0 && (
+                      <div className="border-t border-border/50 pt-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-text-tertiary/60 mb-2">Últimos pagamentos</p>
+                        <div className="space-y-1">
+                          {recentPayments.map((p: { id: string; period_start: string | null; status: string; paid_at: string | null }) => (
+                            <div key={p.id} className="flex items-center justify-between text-xs">
+                              <span className="text-text-secondary">
+                                {p.period_start
+                                  ? format(new Date(p.period_start), "MMMM yyyy", { locale: pt })
+                                  : format(new Date(p.paid_at ?? ""), "dd/MM/yyyy", { locale: pt })}
+                              </span>
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                  p.status === "paid"
+                                    ? "bg-success/10 text-success"
+                                    : "bg-warning/10 text-warning"
+                                }`}
+                              >
+                                {p.status === "paid" ? "Pago" : "Pendente"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Boxes */}
       {memberships && memberships.length > 0 && (

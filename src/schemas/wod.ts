@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const WOD_TYPES = ["AMRAP", "For Time", "For Load", "EMOM", "Tabata", "Custom"] as const;
-export const WOD_CATEGORIES = ["girls", "heroes", "notables", "games", "weightlifting", "original"] as const;
+export const WOD_CATEGORIES = ["girls", "heroes", "notables", "games", "weightlifting", "endurance", "gymnastics", "original"] as const;
 export const SCORE_TYPES = ["time", "reps", "weight", "rounds+reps", "distance", "round-best", "round-total", "round-worst", "round-reps"] as const;
 
 export type WodType = (typeof WOD_TYPES)[number];

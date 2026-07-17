@@ -332,6 +332,6 @@
 .filter-page{
   background-image: url('/textures/zekko-filter.webp');
   z-index: 999999;
-  opacity: .5;
+  opacity: .3;
   mix-blend-mode: difference;
 }

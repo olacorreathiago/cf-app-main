@@ -12,6 +12,7 @@ export interface AthleteBox {
   slug: string;
   logo_url: string | null;
   role: string;
+  approval_status: string | null;
 }
 
 export interface AthleteDashboardClass {
@@ -25,12 +26,16 @@ export interface AthleteDashboardClass {
   confirmed_count: number;
   waitlist_count: number;
   my_booking_status: "confirmed" | "waitlist" | "cancelled" | null;
+  /** true = presença confirmada, false = falta, null = por marcar */
+  my_attended?: boolean | null;
   my_waitlist_position?: number;
   wods?: AthleteDashboardWod[];
 }
 
 export interface AthleteDashboardWod {
   id: string;
+  /** Class the WOD was resolved from (used to scope the result) */
+  class_id?: string | null;
   title: string;
   type: string;
   category: string;
@@ -63,6 +68,17 @@ export interface AthleteProfileData {
   profile_type: string;
 }
 
+export interface AthleteDropIn {
+  id: string;
+  box_name: string;
+  class_name: string;
+  starts_at: string;
+  status: "pending" | "confirmed" | "cancelled";
+  payment_status: "pending" | "paid" | null;
+  payment_amount: number | null;
+  payment_instructions: string | null;
+}
+
 export interface AthleteDashboardData {
   profile: AthleteProfileData;
   activeBox: AthleteBox | null;
@@ -71,6 +87,7 @@ export interface AthleteDashboardData {
   todayWods: AthleteDashboardWod[];
   upcomingClasses: AthleteDashboardClass[];
   recentPrs: AthleteDashboardPr[];
+  myDropIns: AthleteDropIn[];
   cutoffHours: number;
   advanceDays: number;
   maxWaitlist: number;
@@ -96,16 +113,16 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
 
   const { data: memberships } = await supabase
     .from("memberships")
-    .select("role, box_id, boxes(id, name, slug, logo_url, settings)")
+    .select("role, box_id, boxes(id, name, slug, logo_url, approval_status, settings)")
     .eq("user_id", user.id)
     .eq("status", "active")
     .order("created_at");
 
   const allBoxes: AthleteBox[] = (memberships ?? [])
     .map((m) => {
-      const box = m.boxes as unknown as { id: string; name: string; slug: string; logo_url: string | null; settings?: Record<string, unknown> } | null;
+      const box = m.boxes as unknown as { id: string; name: string; slug: string; logo_url: string | null; approval_status: string | null; settings?: Record<string, unknown> } | null;
       if (!box?.id) return null;
-      return { id: box.id, name: box.name, slug: box.slug, logo_url: box.logo_url, role: m.role };
+      return { id: box.id, name: box.name, slug: box.slug, logo_url: box.logo_url, role: m.role, approval_status: box.approval_status };
     })
     .filter((b): b is AthleteBox => b !== null);
 
@@ -136,8 +153,64 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
       ? boxSettings.max_waitlist
       : 5;
 
+  // Fetch upcoming drop-ins for this user (by email OR user_id) — works even without a box
+  const myDropIns: AthleteDropIn[] = [];
+  const userEmail = (await supabase.from("profiles").select("email").eq("id", user.id).single()).data?.email;
+  {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    // Query by user_id first, then by email as fallback (covers drop-ins created before user_id was set)
+    const orFilter = userEmail
+      ? `user_id.eq.${user.id},email.eq.${userEmail.toLowerCase()}`
+      : `user_id.eq.${user.id}`;
+    const { data: dropIns } = await supabaseAdmin
+      .from("drop_ins")
+      .select("id, status, class_id, box_id, date")
+      .or(orFilter)
+      .neq("status", "cancelled")
+      .gte("date", todayStr)
+      .order("date")
+      .limit(5);
+
+    if (dropIns && dropIns.length > 0) {
+      const classIds = dropIns.map((d) => d.class_id).filter(Boolean) as string[];
+      const boxIds = [...new Set(dropIns.map((d) => d.box_id))];
+      const dropInIds = dropIns.map((d) => d.id);
+
+      const [classResult, boxResult, paymentResult] = await Promise.all([
+        classIds.length > 0
+          ? supabaseAdmin.from("classes").select("id, name, starts_at").in("id", classIds)
+          : { data: [] },
+        supabaseAdmin.from("boxes").select("id, name, payment_instructions").in("id", boxIds),
+        supabaseAdmin.from("payments").select("reference_id, status, amount").eq("kind", "drop_in").in("reference_id", dropInIds),
+      ]);
+
+      const classMap: Record<string, { name: string; starts_at: string }> = {};
+      for (const c of classResult.data ?? []) classMap[c.id] = c;
+      const boxMap: Record<string, { name: string; payment_instructions: string | null }> = {};
+      for (const b of boxResult.data ?? []) boxMap[b.id] = b;
+      const payMap: Record<string, { status: string; amount: number }> = {};
+      for (const p of paymentResult.data ?? []) if (p.reference_id) payMap[p.reference_id] = p;
+
+      for (const d of dropIns) {
+        const cls = d.class_id ? classMap[d.class_id] : null;
+        const box = boxMap[d.box_id];
+        const pay = payMap[d.id];
+        myDropIns.push({
+          id: d.id,
+          box_name: box?.name ?? "Box",
+          class_name: cls?.name ?? "Aula",
+          starts_at: cls?.starts_at ?? `${d.date}T00:00:00`,
+          status: d.status as "pending" | "confirmed" | "cancelled",
+          payment_status: pay ? (pay.status as "pending" | "paid") : null,
+          payment_amount: pay?.amount ?? null,
+          payment_instructions: box?.payment_instructions ?? null,
+        });
+      }
+    }
+  }
+
   if (!activeBox) {
-    return { profile, activeBox: null, allBoxes, todayClasses: [], todayWods: [], upcomingClasses: [], recentPrs: [], cutoffHours: 1, advanceDays: 7, maxWaitlist: 5, statsWodsThisMonth: 0, statsWodsPrevMonth: 0, statsTotalPrs: 0 };
+    return { profile, activeBox: null, allBoxes, todayClasses: [], todayWods: [], upcomingClasses: [], recentPrs: [], myDropIns, cutoffHours: 1, advanceDays: 7, maxWaitlist: 5, statsWodsThisMonth: 0, statsWodsPrevMonth: 0, statsTotalPrs: 0 };
   }
 
   // Today's scheduled classes — use local date string to avoid UTC offset shifting the day boundary
@@ -198,13 +271,15 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
   const { data: myBookings } = classIds.length > 0
     ? await supabase
         .from("bookings")
-        .select("class_id, status")
+        .select("class_id, status, attended")
         .eq("user_id", user.id)
         .in("class_id", classIds)
     : { data: [] };
   const myBookingMap: Record<string, "confirmed" | "waitlist" | "cancelled"> = {};
+  const myAttendedMap: Record<string, boolean | null> = {};
   for (const b of myBookings ?? []) {
     myBookingMap[b.class_id] = b.status as "confirmed" | "waitlist" | "cancelled";
+    myAttendedMap[b.class_id] = (b as { attended?: boolean | null }).attended ?? null;
   }
 
   // Waitlist positions for today's classes where user is waitlisted
@@ -231,11 +306,15 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
     confirmed_count: countMap[c.id]?.confirmed ?? 0,
     waitlist_count: countMap[c.id]?.waitlist ?? 0,
     my_booking_status: myBookingMap[c.id] ?? null,
+    my_attended: myAttendedMap[c.id] ?? null,
     my_waitlist_position: waitlistPositionMap[c.id],
   }));
 
-  // Attach WODs to today's confirmed classes (enables result registration in ClassCard)
-  const confirmedTodayClasses = todayClasses.filter((c) => c.my_booking_status === "confirmed");
+  // Attach WODs to today's checked-in classes (enables result registration in ClassCard).
+  // Requires confirmed check-in (attended = true) — absent athletes get no WOD access.
+  const confirmedTodayClasses = todayClasses.filter(
+    (c) => c.my_booking_status === "confirmed" && c.my_attended === true
+  );
   if (confirmedTodayClasses.length > 0) {
     const wodsByClass = await fetchWodsForClasses(supabase, confirmedTodayClasses, user.id, activeBox.id);
     for (const cls of todayClasses) {
@@ -244,12 +323,12 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
     }
   }
 
-  // Published WODs — only for classes that are already finished AND have a confirmed booking
+  // Published WODs — only for finished classes with confirmed check-in (attended = true)
   const nowMs = Date.now();
   const attendedTodayIds = new Set(
     todayClasses
       .filter((c) => {
-        if (c.my_booking_status !== "confirmed") return false;
+        if (c.my_booking_status !== "confirmed" || c.my_attended !== true) return false;
         const endsAt = new Date(c.starts_at).getTime() + c.duration_minutes * 60_000;
         return nowMs >= endsAt;
       })
@@ -258,6 +337,14 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
   const allWodIds = [...new Set(
     todayClasses.filter((c) => attendedTodayIds.has(c.id)).flatMap((c) => c.wod_ids)
   )];
+  // Map each WOD to the attended class it came from (scopes the result to the class)
+  const wodClassMap: Record<string, string> = {};
+  for (const c of todayClasses) {
+    if (!attendedTodayIds.has(c.id)) continue;
+    for (const wid of c.wod_ids) {
+      if (!wodClassMap[wid]) wodClassMap[wid] = c.id;
+    }
+  }
   let todayWods: AthleteDashboardWod[] = [];
   if (allWodIds.length > 0) {
     const { data: wods } = await supabase
@@ -296,6 +383,7 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
 
     todayWods = (wods ?? []).map((w) => ({
       id: w.id,
+      class_id: wodClassMap[w.id] ?? null,
       title: w.title,
       type: w.type,
       category: w.category,
@@ -429,6 +517,7 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
     todayClasses,
     todayWods,
     upcomingClasses,
+    myDropIns,
     cutoffHours,
     advanceDays,
     maxWaitlist,

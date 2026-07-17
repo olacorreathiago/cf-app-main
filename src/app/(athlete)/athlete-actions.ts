@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-export async function switchActiveBox(boxId: string) {
+export async function switchActiveBox(boxId: string, returnTo?: string) {
   const cookieStore = await cookies();
   cookieStore.set("athlete_active_box", boxId, {
     path: "/",
@@ -11,5 +11,8 @@ export async function switchActiveBox(boxId: string) {
     httpOnly: true,
     sameSite: "lax",
   });
-  redirect("/athlete");
+  // Stay on the current athlete page and refresh its data for the newly active
+  // box, rather than always bouncing back to the home dashboard.
+  const dest = returnTo && returnTo.startsWith("/athlete") ? returnTo : "/athlete";
+  redirect(dest);
 }

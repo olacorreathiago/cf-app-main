@@ -106,18 +106,26 @@ export default async function ClassesPage({ params, searchParams }: Props) {
   const allInstanceIds = (instances ?? []).map((i) => i.id);
   const countMap: Record<string, number> = {};
   if (allInstanceIds.length > 0) {
-    const [{ data: countRows }, { data: trialRows }] = await Promise.all([
+    const [{ data: countRows }, { data: trialRows }, { data: dropInRows }] = await Promise.all([
       supabase.rpc("get_class_booking_counts", { p_class_ids: allInstanceIds }),
       supabaseAdmin
         .from("trials")
         .select("class_id")
         .in("class_id", allInstanceIds)
         .not("status", "in", '("lost","converted")'),
+      supabaseAdmin
+        .from("drop_ins")
+        .select("class_id")
+        .in("class_id", allInstanceIds)
+        .neq("status", "cancelled"),
     ]);
     for (const row of countRows ?? []) {
       countMap[row.class_id] = row.confirmed_count ?? 0;
     }
     for (const row of trialRows ?? []) {
+      if (row.class_id) countMap[row.class_id] = (countMap[row.class_id] ?? 0) + 1;
+    }
+    for (const row of dropInRows ?? []) {
       if (row.class_id) countMap[row.class_id] = (countMap[row.class_id] ?? 0) + 1;
     }
   }

@@ -123,8 +123,13 @@ export function ClassCard({ cls, cutoffHours = 1, advanceDays = 7, maxWaitlist =
   const canBook = !isClosed && !isPast && !isTooEarly;
   const canCancel = (isBooked || isWaitlisted) && !isPast;
 
-  // Show result section: class ended (past but not still running), athlete was confirmed
-  const showResultSection = isPast && !isRunning && bookingStatus === "confirmed" && !!boxId;
+  // Show result section: class ended (past but not still running), athlete was
+  // confirmed AND checked-in (attended = true). Without check-in there is no
+  // access to the WOD nor result registration.
+  const isCheckedIn = cls.my_attended === true;
+  const isAbsent = cls.my_attended === false;
+  const showResultSection = isPast && !isRunning && bookingStatus === "confirmed" && !!boxId && isCheckedIn;
+  const showNoCheckinNotice = isPast && !isRunning && bookingStatus === "confirmed" && !!boxId && !isCheckedIn;
 
   function handleBook() {
     setError(null);
@@ -283,6 +288,20 @@ export function ClassCard({ cls, cutoffHours = 1, advanceDays = 7, maxWaitlist =
         {isRunning && isBooked && (
           <div className="border-t border-border/60 px-4 py-2 text-[11px] text-text-tertiary italic">
             Podes registar o resultado ao fim da aula
+          </div>
+        )}
+
+        {/* No check-in: absent (or unmarked) athletes have no WOD/result access */}
+        {showNoCheckinNotice && (
+          <div className={[
+            "border-t px-4 py-2 text-[11px] font-medium",
+            isAbsent
+              ? "border-error/20 bg-error/5 text-error"
+              : "border-border/60 text-text-tertiary italic",
+          ].join(" ")}>
+            {isAbsent
+              ? "Falta registada — sem acesso ao WOD nem registo de resultado"
+              : "Presença por confirmar pelo coach — o WOD fica disponível após o check-in"}
           </div>
         )}
 
