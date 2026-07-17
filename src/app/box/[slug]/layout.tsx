@@ -1,9 +1,12 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { BoxSidebar, BoxNav } from "./box-nav";
+import { BoxSidebar, BoxNav, BoxSwitchChip, type StaffBox } from "./box-nav";
+import { BoxCard } from "./box-card";
+import { AppLogo } from "@/components/shared/app-logo";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { getUnreadCount, listNotifications, getPreferences } from "@/lib/notifications/queries";
+import { checkClassStartingNotifications } from "@/lib/notifications/actions";
 
 interface Props {
   children: React.ReactNode;
@@ -96,11 +99,11 @@ export default async function BoxLayout({ children, params }: Props) {
 
   const { data: box } = await supabase
     .from("boxes")
-    .select("id, name, slug, logo_url, approval_status")
+    .select("id, name, slug, logo_url, approval_status, city, created_at")
     .eq("slug", slug)
     .single();
 
-  if (!box) redirect("/dashboard");
+  if (!box) redirect("/athlete");
 
   const { data: membership } = await supabase
     .from("memberships")
@@ -110,7 +113,23 @@ export default async function BoxLayout({ children, params }: Props) {
     .in("role", ["owner", "partner", "manager", "coach"])
     .maybeSingle();
 
-  if (!membership) redirect("/dashboard");
+  if (!membership) redirect("/athlete");
+
+  // All boxes this user manages — for the mobile box switcher.
+  const { data: staffMemberships } = await supabase
+    .from("memberships")
+    .select("role, boxes(id, name, slug, logo_url, approval_status)")
+    .eq("user_id", user.id)
+    .in("role", ["owner", "partner", "manager", "coach"])
+    .order("created_at");
+
+  const managedBoxes: StaffBox[] = (staffMemberships ?? [])
+    .map((m) => {
+      const b = m.boxes as unknown as { id: string; name: string; slug: string; logo_url: string | null; approval_status: string | null } | null;
+      if (!b?.id) return null;
+      return { id: b.id, name: b.name, slug: b.slug, logo_url: b.logo_url, approval_status: b.approval_status };
+    })
+    .filter((b): b is StaffBox => b !== null);
 
   const { data: rawProfile } = await supabase
     .from("profiles")
@@ -124,6 +143,14 @@ export default async function BoxLayout({ children, params }: Props) {
   };
   const completion = getProfileCompletion(profile);
 
+  const boxYear = box.created_at ? new Date(box.created_at).getFullYear() : null;
+  const boxSubtitle = [box.city, boxYear ? `desde ${boxYear}` : null]
+    .filter(Boolean)
+    .join(" • ");
+
+  // Create class_starting notifications before fetching (coach may have classes today)
+  await checkClassStartingNotifications(box.id, user.id);
+
   const [notifUnread, notifList, notifPrefs] = await Promise.all([
     getUnreadCount(user.id, box.id),
     listNotifications(box.id),
@@ -134,27 +161,25 @@ export default async function BoxLayout({ children, params }: Props) {
     <div className="flex h-[100svh] bg-bg-base text-foreground">
 
       {/* ── Sidebar (desktop) ────────────────────────────── */}
-      <aside className="hidden lg:flex w-56 shrink-0 flex-col border-r border-border bg-bg-base">
-        {/* Box identity */}
-        <div className="flex items-center gap-3 px-4 py-4 border-b border-border">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-fg">
-            {box.logo_url ? (
-              <img src={box.logo_url} alt={box.name} className="h-8 w-8 rounded-lg object-cover" />
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                <rect x="1.5" y="1.5" width="11" height="11" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M1.5 5.5h11" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-text-primary truncate">{box.name}</p>
-            <p className="text-[10px] text-text-tertiary capitalize">{membership.role}</p>
-          </div>
+      <aside className="hidden lg:flex w-56 shrink-0 flex-col bg-bg-base">
+        {/* Wordmark */}
+        <div className="px-5 pb-4 pt-6">
+          <Link href={`/box/${slug}`} aria-label="Visão Geral">
+            <AppLogo size="xl" compact />
+          </Link>
         </div>
 
         {/* Nav */}
         <BoxSidebar slug={slug} role={membership.role} />
+
+        {/* Box identity card */}
+        <BoxCard
+          slug={slug}
+          name={box.name}
+          logoUrl={box.logo_url}
+          subtitle={boxSubtitle}
+          canManageSettings={["owner", "partner"].includes(membership.role)}
+        />
       </aside>
 
       {/* ── Main area ────────────────────────────────────── */}
@@ -162,15 +187,12 @@ export default async function BoxLayout({ children, params }: Props) {
 
         {/* Top header */}
         <header className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3">
-          {/* Mobile: box name */}
-          <div className="flex items-center gap-2 lg:hidden">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-accent-fg shrink-0">
-              <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
-                <rect x="1.5" y="1.5" width="11" height="11" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M1.5 5.5h11" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-            </div>
-            <span className="text-sm font-semibold text-text-primary truncate max-w-[160px]">{box.name}</span>
+          {/* Mobile: tappable box switcher chip */}
+          <div className="lg:hidden">
+            <BoxSwitchChip
+              current={{ id: box.id, name: box.name, slug: box.slug, logo_url: box.logo_url, approval_status: box.approval_status }}
+              managedBoxes={managedBoxes}
+            />
           </div>
 
           <div className="hidden lg:block" />
@@ -181,6 +203,7 @@ export default async function BoxLayout({ children, params }: Props) {
             <NotificationBell
               boxId={box.id}
               slug={slug}
+              userId={user.id}
               initialUnread={notifUnread}
               initialNotifications={notifList}
               initialPrefs={notifPrefs}
@@ -198,7 +221,7 @@ export default async function BoxLayout({ children, params }: Props) {
 
         {/* Mobile bottom nav */}
         <nav className="fixed bottom-0 left-0 right-0 z-10 flex lg:hidden border-t border-border bg-bg-base/90 backdrop-blur-sm">
-          <BoxNav slug={slug} role={membership.role} />
+          <BoxNav slug={slug} role={membership.role} managedBoxes={managedBoxes} />
         </nav>
       </div>
     </div>

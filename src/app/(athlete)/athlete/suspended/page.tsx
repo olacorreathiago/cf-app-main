@@ -15,7 +15,7 @@ export default function SuspendedPage() {
         </div>
 
         <div className="space-y-2">
-          <h1 className="font-display text-xl text-text-primary">Conta suspensa</h1>
+          <h1 className="font-display text-2xl uppercase text-text-primary">Conta suspensa</h1>
           <p className="text-sm text-text-secondary leading-relaxed">
             O teu acesso à box foi suspenso temporariamente. Contacta o teu coach ou gestor para reativar a tua conta.
           </p>

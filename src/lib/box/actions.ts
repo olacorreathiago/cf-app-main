@@ -57,7 +57,7 @@ export async function createBox(data: {
 
   if (memberError) throw new Error(memberError.message);
 
-  redirect("/dashboard");
+  redirect("/athlete");
 }
 
 export async function checkSlugAvailable(slug: string): Promise<boolean> {

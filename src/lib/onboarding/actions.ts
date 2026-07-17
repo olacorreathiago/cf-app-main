@@ -37,7 +37,7 @@ export async function completeAthleteOnboarding(data: {
   } else if (data.inviteToken) {
     redirect(`/invite?token=${data.inviteToken}`);
   } else {
-    redirect("/dashboard");
+    redirect("/athlete");
   }
 }
 
@@ -45,6 +45,7 @@ export async function completeProfessionalOnboarding(data: {
   fullName: string;
   professionalId: string;
   phone: string;
+  gender?: "male" | "female" | null;
   inviteToken?: string | null;
 }): Promise<void> {
   const supabase = await supabaseServer();
@@ -63,6 +64,7 @@ export async function completeProfessionalOnboarding(data: {
       profile_type: "professional",
       professional_id: data.professionalId.trim(),
       phone: data.phone.trim(),
+      gender: data.gender ?? null,
       approval_status: "pending_approval",
       onboarding_completed: true,
     })

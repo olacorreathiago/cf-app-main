@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState, useTransition, useEffect } from "react";
+import { useRef, useState, useTransition, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { markAllReadAction, markReadAction, upsertPrefAction, fetchNotificationsAction } from "@/lib/notifications/actions";
 import type { Notification, NotificationPreference } from "@/lib/notifications/queries";
 import type { NotificationType } from "@/lib/notifications/send";
+import { supabase } from "@/lib/supabase/client";
 
 const TYPE_LABELS: Record<NotificationType, string> = {
   class_cancelled: "Aulas canceladas",
@@ -105,6 +106,7 @@ function Toggle({
 interface Props {
   boxId: string;
   slug?: string;
+  userId: string;
   initialUnread: number;
   initialNotifications: Notification[];
   initialPrefs: NotificationPreference[];
@@ -113,6 +115,7 @@ interface Props {
 export function NotificationBell({
   boxId,
   slug,
+  userId,
   initialUnread,
   initialNotifications,
   initialPrefs,
@@ -136,6 +139,44 @@ export function NotificationBell({
     if (open) document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [open]);
+
+  // Realtime: subscribe to new notifications for this user+box
+  useEffect(() => {
+    const channel = supabase
+      .channel(`notifications:${userId}:${boxId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const row = payload.new as {
+            id: string;
+            box_id: string;
+            type: string;
+            title: string;
+            body: string | null;
+            data: Record<string, string> | null;
+            read_at: string | null;
+            created_at: string;
+          };
+          if (row.box_id !== boxId) return;
+          setNotifications((prev) => {
+            if (prev.some((n) => n.id === row.id)) return prev;
+            return [row, ...prev].slice(0, 10);
+          });
+          setUnread((prev) => prev + 1);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, boxId]);
 
   async function handleOpen() {
     setOpen((o) => {

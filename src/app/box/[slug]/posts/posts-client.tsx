@@ -192,9 +192,9 @@ export function PostsClient({ posts: initial, boxId, slug }: Props) {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-text-primary">Recados & Posts</h1>
-        <p className="text-sm text-text-tertiary mt-0.5">
-          Comunica com os membros da box.
+        <h1 className="font-display text-2xl uppercase text-text-primary">Feed de Notícias</h1>
+        <p className="label-caps mt-1 text-text-tertiary">
+          Comunica com os membros da box
         </p>
       </div>
 

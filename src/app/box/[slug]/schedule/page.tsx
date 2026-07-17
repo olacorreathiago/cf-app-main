@@ -23,7 +23,7 @@ export default async function SchedulePage({ params }: Props) {
     .eq("slug", slug)
     .single();
 
-  if (!box) redirect("/dashboard");
+  if (!box) redirect("/athlete");
 
   const { data: membership } = await supabase
     .from("memberships")
@@ -33,7 +33,7 @@ export default async function SchedulePage({ params }: Props) {
     .in("role", ["owner", "partner", "manager"])
     .maybeSingle();
 
-  if (!membership) redirect("/dashboard");
+  if (!membership) redirect("/athlete");
 
   const [{ data: templates }] = await Promise.all([
     supabase
@@ -48,11 +48,11 @@ export default async function SchedulePage({ params }: Props) {
   const modalities = settings.modalities ?? [];
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8">
+    <main className="mx-auto w-full max-w-6xl px-5 py-7">
       <div className="mb-6">
-        <h1 className="text-lg font-semibold text-text-primary">Agenda semanal</h1>
-        <p className="text-sm text-text-tertiary mt-0.5">
-          Templates de aulas recorrentes. Clica num template para editar.
+        <h1 className="font-display text-2xl uppercase text-text-primary">Agenda semanal</h1>
+        <p className="label-caps mt-1 text-text-tertiary">
+          Templates de aulas recorrentes
         </p>
       </div>
 

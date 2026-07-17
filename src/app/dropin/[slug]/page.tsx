@@ -31,7 +31,7 @@ export default async function DropInPublicPage({ params }: Props) {
               <path d="M14 3C8 3 3 8 3 14s5 11 11 11 11-5 11-11S20 3 14 3zm0 6v5m0 4v.5" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" />
             </svg>
           </div>
-          <h1 className="text-lg font-semibold text-text-primary">{box.name}</h1>
+          <h1 className="font-display text-2xl uppercase text-text-primary">{box.name}</h1>
           <p className="text-sm text-text-tertiary">Drop-ins não estão disponíveis nesta box de momento.</p>
         </div>
       </main>
@@ -92,7 +92,7 @@ export default async function DropInPublicPage({ params }: Props) {
             </div>
           )}
           <div>
-            <h1 className="text-xl font-semibold text-text-primary">{box.name}</h1>
+            <h1 className="font-display text-2xl uppercase text-text-primary">{box.name}</h1>
             <p className="text-sm text-text-tertiary">Registo de drop-in</p>
           </div>
           {dropInPrice != null && (

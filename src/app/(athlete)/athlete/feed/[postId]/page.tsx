@@ -26,7 +26,7 @@ export default async function PostDetailPage({ params }: Props) {
   });
 
   return (
-    <div className="mx-auto w-full max-w-xl px-4 py-6">
+    <div className="mx-auto w-full max-w-xl px-5 py-7">
       {/* Back */}
       <Link
         href="/athlete/feed"

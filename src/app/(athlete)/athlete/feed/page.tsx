@@ -11,10 +11,10 @@ export default async function FeedPage() {
   const posts = await getFeedPosts();
 
   return (
-    <div className="mx-auto w-full max-w-xl px-4 py-6">
+    <div className="mx-auto w-full max-w-xl px-5 py-7">
       <div className="mb-6">
         <p className="label-caps text-text-tertiary">Comunidade</p>
-        <h1 className="font-display text-2xl text-text-primary">Feed</h1>
+        <h1 className="font-display text-2xl uppercase text-text-primary">Feed</h1>
       </div>
 
       {posts.length === 0 ? (

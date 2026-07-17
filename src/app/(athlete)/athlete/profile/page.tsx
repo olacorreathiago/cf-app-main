@@ -4,6 +4,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { ProfileForm } from "./profile-form";
 import { ProfileCompletion } from "./profile-completion";
 import { AvatarUpload } from "./avatar-upload";
+import { signOut } from "@/app/dashboard/actions";
 
 export const metadata: Metadata = { title: "Perfil" };
 import { format } from "date-fns";
@@ -49,7 +50,7 @@ export default async function AthleteProfilePage() {
           displayName={displayName}
         />
         <div>
-          <h1 className="font-display text-xl text-text-primary">
+          <h1 className="font-display text-2xl uppercase text-text-primary">
             {profile.full_name ?? profile.email}
           </h1>
           {profile.nickname && (
@@ -101,6 +102,25 @@ export default async function AthleteProfilePage() {
           </div>
         </section>
       )}
+
+      {/* Sessão */}
+      <section className="space-y-3">
+        <p className="label-caps text-text-tertiary">Sessão</p>
+        <form action={signOut}>
+          <button
+            type="submit"
+            className="group flex w-full items-center gap-3 rounded-2xl border border-border bg-bg-card px-5 py-4 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-error/40 hover:bg-error/5 hover:text-error"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-bg-input text-text-tertiary transition-colors duration-150 group-hover:bg-error/10 group-hover:text-error">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+                <path d="M10.5 11L14 8l-3.5-3M14 8H6" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            Terminar sessão
+          </button>
+        </form>
+      </section>
     </div>
   );
 }

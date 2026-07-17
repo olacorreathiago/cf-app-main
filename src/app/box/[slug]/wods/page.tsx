@@ -23,7 +23,7 @@ export default async function WodsPage({ params }: Props) {
     .eq("slug", slug)
     .single();
 
-  if (!box) redirect("/dashboard");
+  if (!box) redirect("/athlete");
 
   const { data: membership } = await supabase
     .from("memberships")
@@ -33,7 +33,7 @@ export default async function WodsPage({ params }: Props) {
     .in("role", ["owner", "partner", "manager", "coach"])
     .maybeSingle();
 
-  if (!membership) redirect("/dashboard");
+  if (!membership) redirect("/athlete");
 
   const [wods, benchmarks] = await Promise.all([
     getWods(box.id),
@@ -41,7 +41,7 @@ export default async function WodsPage({ params }: Props) {
   ]);
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-8">
+    <main className="mx-auto w-full max-w-3xl px-5 py-7">
       <WodList wods={wods} benchmarks={benchmarks} boxId={box.id} />
     </main>
   );

@@ -32,7 +32,7 @@ export default async function MembersPage({ params }: Props) {
     .eq("slug", slug)
     .single();
 
-  if (!box) redirect("/dashboard");
+  if (!box) redirect("/athlete");
 
   const { data: viewerMembership } = await supabase
     .from("memberships")
@@ -106,7 +106,7 @@ export default async function MembersPage({ params }: Props) {
   const pendingInvites = (invites ?? []) as unknown as Invite[];
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-6 py-8 space-y-8">
+    <main className="mx-auto w-full max-w-2xl px-5 py-7 space-y-8">
       <MembersWithTabs
         slug={slug}
         boxId={box.id}

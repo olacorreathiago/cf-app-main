@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { markAllRead, markNotificationRead, upsertPreference, listNotifications, getUnreadCount } from "./queries";
 import type { NotificationType } from "./send";
 
-async function checkClassStartingNotifications(boxId: string, userId: string) {
+export async function checkClassStartingNotifications(boxId: string, userId: string) {
   // Use the same date approach as coach-today-actions: compare as naive local strings
   const now = new Date();
   const localToday = now.toLocaleDateString("sv");   // "YYYY-MM-DD" in server local

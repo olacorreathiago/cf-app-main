@@ -30,7 +30,7 @@ export async function joinBoxByToken(joinToken: string): Promise<void> {
 
   if (memberError) throw new Error(memberError.message);
 
-  redirect("/dashboard");
+  redirect("/athlete");
 }
 
 export async function createEmailInvite(data: {
@@ -177,5 +177,5 @@ export async function acceptInvite(token: string): Promise<void> {
     .update({ status: "accepted", accepted_at: new Date().toISOString() })
     .eq("id", invite.id);
 
-  redirect("/dashboard");
+  redirect("/athlete");
 }

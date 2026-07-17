@@ -52,7 +52,7 @@ export default async function WaitingApprovalPage() {
     .eq("id", user.id)
     .single();
 
-  if (profile?.approval_status === "approved") redirect("/dashboard");
+  if (profile?.approval_status === "approved") redirect("/athlete");
 
   const status = profile?.approval_status === "rejected" ? "rejected" : "pending_approval";
   const state = STATES[status];

@@ -25,7 +25,7 @@ export default async function BoxSettingsPage({ params }: Props) {
     .eq("slug", slug)
     .single();
 
-  if (!box) redirect("/dashboard");
+  if (!box) redirect("/athlete");
 
   const { data: membership } = await supabase
     .from("memberships")
@@ -35,7 +35,7 @@ export default async function BoxSettingsPage({ params }: Props) {
     .in("role", ["owner", "partner", "manager"])
     .maybeSingle();
 
-  if (!membership) redirect("/dashboard");
+  if (!membership) redirect("/athlete");
 
   const canEdit = membership.role === "owner" || membership.role === "partner";
 
@@ -45,13 +45,13 @@ export default async function BoxSettingsPage({ params }: Props) {
   };
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-6 py-12 space-y-10">
+    <main className="mx-auto w-full max-w-3xl px-5 py-7 space-y-10">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary">Definições</h1>
-        <p className="text-sm text-text-tertiary mt-1">
+        <h1 className="font-display text-2xl uppercase text-text-primary">Definições</h1>
+        <p className="label-caps mt-1 text-text-tertiary">
           {canEdit
-            ? "Gere as informações e configurações da box."
-            : "Só o owner e partners podem editar as definições."}
+            ? "Informações e configurações da box"
+            : "Só o owner e partners podem editar"}
         </p>
       </div>
 

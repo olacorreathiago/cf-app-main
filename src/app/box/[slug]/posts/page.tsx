@@ -25,7 +25,7 @@ export default async function BoxPostsPage({ params }: Props) {
     .eq("slug", slug)
     .single();
 
-  if (!box) redirect("/dashboard");
+  if (!box) redirect("/athlete");
 
   const { data: membership } = await supabase
     .from("memberships")
@@ -40,7 +40,7 @@ export default async function BoxPostsPage({ params }: Props) {
   const posts = await getBoxPosts(box.id);
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-6">
+    <div className="mx-auto w-full max-w-2xl px-5 py-7">
       <PostsClient posts={posts} boxId={box.id} slug={slug} />
     </div>
   );

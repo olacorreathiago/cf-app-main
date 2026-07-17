@@ -17,7 +17,7 @@ async function assertStaff(boxId: string) {
     .in("role", ["owner", "partner", "manager", "coach"])
     .maybeSingle();
 
-  if (!data) redirect("/dashboard");
+  if (!data) redirect("/athlete");
   return user;
 }
 

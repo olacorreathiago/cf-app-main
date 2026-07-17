@@ -56,21 +56,20 @@ export function MembersList({ members, boxId, boxName, slug, viewerRole, canInvi
       <div className="space-y-3">
         {/* Header row */}
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text-primary">
-            Membros <span className="ml-1 font-normal text-text-tertiary">({members.length})</span>
-          </h2>
+          <p className="label-caps text-text-tertiary">
+            Membros
+          </p>
           {canInvite && (
             <button
               type="button"
               onClick={() => setDrawerOpen(true)}
-              className="flex items-center gap-1.5 text-xs font-medium text-accent transition-opacity hover:opacity-80"
+              className="inline-flex items-center gap-2 rounded-full border border-accent/40 px-4 py-2 text-sm font-medium text-accent transition-colors hover:bg-accent/10"
             >
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent text-accent-fg">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </span>
-              Convidar
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M7 4.5v5M4.5 7h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+              Convidar membros
             </button>
           )}
         </div>
@@ -96,7 +95,7 @@ export function MembersList({ members, boxId, boxName, slug, viewerRole, canInvi
         {paginated.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border py-10 text-center">
             <p className="text-sm text-text-tertiary">
-              {query ? "Nenhum resultado encontrado." : "Ainda não há membros ativos."}
+              {query ? "Nenhum resultado encontrado." : "Sem membros ativos"}
             </p>
           </div>
         ) : (

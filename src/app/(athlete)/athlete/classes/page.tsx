@@ -30,7 +30,7 @@ export default async function AthleteClassesPage({ searchParams }: Props) {
       {/* Header */}
       <div>
         <p className="label-caps text-text-tertiary">Aulas</p>
-        <h1 className="font-display text-2xl text-text-primary">{boxName || "A minha box"}</h1>
+        <h1 className="font-display text-2xl uppercase text-text-primary">{boxName || "A minha box"}</h1>
         {settings.cancellation_window_hours > 0 && (
           <p className="text-xs text-text-tertiary mt-0.5">
             Inscrições fecham {settings.cancellation_window_hours}h antes de cada aula

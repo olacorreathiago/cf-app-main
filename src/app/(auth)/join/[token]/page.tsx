@@ -106,7 +106,7 @@ function AlreadyMember({ boxName, status }: { boxName: string; status: string })
         </p>
       </div>
       <a
-        href="/dashboard"
+        href="/athlete"
         className="mt-2 rounded-full bg-accent px-6 py-3 text-sm font-semibold text-accent-fg transition-opacity hover:opacity-90"
       >
         Ir para o dashboard

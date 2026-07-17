@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { getAthleteDashboardData } from "@/lib/athlete/dashboard-actions";
-import type { AthleteDashboardPr } from "@/lib/athlete/dashboard-actions";
 
 export const metadata: Metadata = { title: "Início" };
 import { ClassCard } from "@/components/athlete/class-card";
@@ -24,8 +23,8 @@ function buildGreeting(fullName: string | null, nickname: string | null): string
 export default async function AthleteDashboardPage() {
   const {
     profile, activeBox, todayClasses, todayWods,
-    upcomingClasses, recentPrs, cutoffHours, advanceDays, maxWaitlist,
-    statsWodsThisMonth, statsWodsPrevMonth, statsTotalPrs,
+    upcomingClasses, cutoffHours, advanceDays, maxWaitlist,
+    statsWodsThisMonth,
   } = await getAthleteDashboardData();
 
   const latestPosts = activeBox ? await getLatestBoxPosts(activeBox.id, 3) : [];
@@ -41,9 +40,9 @@ export default async function AthleteDashboardPage() {
     <div className="mx-auto w-full max-w-6xl px-5 py-7">
 
       {/* Greeting */}
-      <div className="mb-7 space-y-0.5">
-        <p className="text-xs text-text-tertiary">{todayLabelCapitalized}</p>
-        <h1 className="font-display text-2xl text-text-primary">Olá, {nameDisplay}</h1>
+      <div className="mb-7 space-y-1">
+        <h1 className="font-display text-3xl uppercase text-text-primary">Hello, {nameDisplay}</h1>
+        <p className="label-caps text-text-tertiary">{todayLabelCapitalized}</p>
       </div>
 
       {/* No box */}
@@ -123,124 +122,54 @@ export default async function AthleteDashboardPage() {
           </div>
 
           {/* ── RIGHT COLUMN ────────────────────────────────── */}
-          <div className="space-y-4">
+          <div className="space-y-6">
 
-            {/* Hero stat — WODs este mês */}
-            {(() => {
-              const diff = statsWodsThisMonth - statsWodsPrevMonth;
-              const pct = statsWodsPrevMonth === 0
-                ? null
-                : Math.round((diff / statsWodsPrevMonth) * 100);
-              const positive = diff >= 0;
-              return (
-                <div
-                  className="relative overflow-hidden rounded-2xl p-6 flex flex-col justify-between"
-                  style={{ minHeight: 160, background: "linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 60%, black) 100%)" }}
-                >
-                  {/* BG decoration */}
-                  <div className="pointer-events-none absolute -right-6 -top-6 h-32 w-32 rounded-full opacity-10 bg-black" />
-                  <div className="pointer-events-none absolute -bottom-8 -left-4 h-40 w-40 rounded-full opacity-5 bg-black" />
+            {/* WOD hero card — WODs this month */}
+            <Link
+              href="/athlete/classes"
+              className="group relative block overflow-hidden rounded-2xl p-6 transition-transform duration-200 hover:-translate-y-0.5"
+              style={{ minHeight: 150, background: "linear-gradient(150deg, color-mix(in srgb, var(--accent) 92%, white) 0%, var(--accent) 55%, color-mix(in srgb, var(--accent) 78%, black) 100%)" }}
+            >
+              {/* Soft light blobs */}
+              <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-white/10" />
+              <div className="pointer-events-none absolute -bottom-12 -left-6 h-40 w-40 rounded-full bg-black/5" />
 
-                  <div className="relative">
-                    <svg width="24" height="24" viewBox="0 0 28 28" fill="none" className="mb-3 opacity-50" style={{ color: "rgba(0,0,0,0.7)" }}>
-                      <path d="M14 4v6M14 18v6M4 14h6M18 14h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                      <circle cx="14" cy="14" r="4" stroke="currentColor" strokeWidth="2" />
-                    </svg>
-                    <p className="text-5xl font-display font-bold leading-none" style={{ color: "rgba(0,0,0,0.85)" }}>{statsWodsThisMonth}</p>
-                    <p className="mt-1.5 text-sm" style={{ color: "rgba(0,0,0,0.55)" }}>WODs em {monthLabelCap}</p>
-                  </div>
+              {/* Lightning glyph, top-right */}
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="absolute right-6 top-6" style={{ color: "rgba(0,0,0,0.8)" }}>
+                <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+              </svg>
 
-                  <div className="relative mt-4 flex items-center justify-between">
-                    <Link
-                      href="/athlete/classes"
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold transition-opacity hover:opacity-80"
-                      style={{ color: "rgba(0,0,0,0.6)" }}
-                    >
-                      Ver histórico
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                        <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </Link>
-                    {pct !== null && (
-                      <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: "rgba(0,0,0,0.12)", color: "rgba(0,0,0,0.7)" }}>
-                        {positive ? "+" : ""}{pct}% vs {format(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1), "MMM", { locale: pt })}
-                      </span>
-                    )}
-                    {pct === null && statsWodsPrevMonth === 0 && statsWodsThisMonth > 0 && (
-                      <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: "rgba(0,0,0,0.12)", color: "rgba(0,0,0,0.7)" }}>
-                        Primeiro mês 🎉
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
+              <p className="relative text-6xl font-display font-bold leading-none" style={{ color: "rgba(0,0,0,0.85)" }}>
+                {statsWodsThisMonth}
+              </p>
+              <p className="relative mt-2 text-sm font-medium" style={{ color: "rgba(0,0,0,0.6)" }}>
+                WOD&apos;s em {monthLabelCap}
+              </p>
 
-            {/* Two medium cards */}
-            <div className="grid grid-cols-2 gap-3">
-              {/* PRs totais */}
-              <div className="rounded-2xl border border-border bg-bg-card p-4 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="rounded-full bg-amber-500/10 p-1.5">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-amber-500">
-                      <path d="M7 1l1.5 3.5L12 5l-2.5 2.5.5 3.5L7 9.5 4 11l.5-3.5L2 5l3.5-.5L7 1z" fill="currentColor" />
-                    </svg>
-                  </span>
-                </div>
-                <p className="text-3xl font-display font-bold text-text-primary leading-none">{statsTotalPrs}</p>
-                <p className="text-xs text-text-tertiary">Records pessoais</p>
+              <span className="relative mt-6 inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: "rgba(0,0,0,0.7)" }}>
+                Ver Histórico
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="transition-transform duration-200 group-hover:translate-x-0.5">
+                  <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+            </Link>
+
+            {/* Feed de notícias */}
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="label-caps text-text-tertiary">Feed de notícias</p>
+                <Link href="/athlete/feed" className="text-xs text-text-tertiary hover:text-text-primary transition-colors">
+                  Ver feed →
+                </Link>
               </div>
-
-              {/* PRs esta semana (últimas 2 semanas) */}
-              <div className="rounded-2xl border border-border bg-bg-card p-4 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="rounded-full bg-green-500/10 p-1.5">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-green-500">
-                      <path d="M2 10l3.5-4 2.5 2.5L11 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </span>
+              {latestPosts.length > 0 ? (
+                <FeedPreview posts={latestPosts} boxName={activeBox.name} />
+              ) : (
+                <div className="rounded-2xl border border-border bg-bg-card px-4 py-10 text-center">
+                  <p className="text-sm text-text-tertiary">Sem notícias no feed da box</p>
                 </div>
-                <p className="text-3xl font-display font-bold text-text-primary leading-none">{recentPrs.length}</p>
-                <p className="text-xs text-text-tertiary">PRs últimas 2 semanas</p>
-              </div>
-            </div>
-
-            {/* PRs recentes */}
-            {recentPrs.length > 0 && (
-              <div className="rounded-2xl border border-border bg-bg-card overflow-hidden">
-                <div className="px-4 pt-4 pb-2">
-                  <p className="label-caps text-text-tertiary">PRs recentes</p>
-                </div>
-                <div className="divide-y divide-border">
-                  {recentPrs.slice(0, 5).map((pr) => (
-                    <PrRow key={pr.id} pr={pr} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Feed preview */}
-            {latestPosts.length > 0 && (
-              <FeedPreview posts={latestPosts} boxName={activeBox.name} />
-            )}
-            {latestPosts.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-border bg-bg-card overflow-hidden">
-                <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-                  <p className="label-caps text-text-tertiary">Recados da box</p>
-                  <Link
-                    href="/athlete/feed"
-                    className="text-xs text-text-tertiary hover:text-text-primary transition-colors"
-                  >
-                    Ver feed →
-                  </Link>
-                </div>
-                <div className="px-4 pb-4">
-                  <p className="text-sm text-text-tertiary">
-                    Sem recados recentes da box.
-                  </p>
-                </div>
-              </div>
-            )}
+              )}
+            </section>
 
           </div>
         </div>
@@ -255,29 +184,6 @@ function EmptyCard({ text }: { text: string }) {
   return (
     <div className="rounded-2xl border border-border bg-bg-card p-5 text-center">
       <p className="text-sm text-text-tertiary">{text}</p>
-    </div>
-  );
-}
-
-function PrRow({ pr }: { pr: AthleteDashboardPr }) {
-  const unitLabel: Record<string, string> = { kg: "kg", lb: "lb", seconds: "seg", reps: "reps" };
-
-  const valueDisplay = pr.unit === "seconds"
-    ? `${Math.floor(pr.value / 60)}:${String(Math.round(pr.value % 60)).padStart(2, "0")}`
-    : `${pr.value} ${unitLabel[pr.unit] ?? pr.unit}`;
-
-  return (
-    <div className="flex items-center justify-between px-4 py-3 gap-3">
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-text-primary truncate">{pr.movement}</p>
-        <p className="text-[11px] text-text-tertiary">
-          {format(new Date(pr.achieved_at), "d MMM", { locale: pt })}
-        </p>
-      </div>
-      <div className="shrink-0 flex items-center gap-1.5">
-        <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-500 uppercase">PR</span>
-        <p className="text-sm font-semibold text-accent">{valueDisplay}</p>
-      </div>
     </div>
   );
 }

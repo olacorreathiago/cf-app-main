@@ -22,7 +22,7 @@ export default async function CreateBoxPage() {
     profile.profile_type !== "professional" ||
     profile.approval_status !== "approved"
   ) {
-    redirect("/dashboard");
+    redirect("/athlete");
   }
 
   return (

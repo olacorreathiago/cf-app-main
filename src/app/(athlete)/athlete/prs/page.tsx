@@ -10,8 +10,8 @@ export default async function AthletePrsPage() {
   return (
     <div className="mx-auto w-full max-w-xl px-5 py-7 space-y-5">
       <div>
-        <h1 className="font-display text-xl text-text-primary">Personal Records</h1>
-        <p className="text-sm text-text-tertiary mt-0.5">Os teus benchmarks e recordes pessoais.</p>
+        <h1 className="font-display text-2xl uppercase text-text-primary">Records</h1>
+        <p className="label-caps mt-1 text-text-tertiary">Benchmarks e recordes pessoais</p>
       </div>
 
       <PrsClient benchmarks={data.benchmarks} />

@@ -32,7 +32,7 @@ export default async function AthleteProfilePage({ params }: Props) {
     .eq("slug", slug)
     .single();
 
-  if (!box) redirect("/dashboard");
+  if (!box) redirect("/athlete");
 
   // Viewer must be staff
   const { data: viewerMembership } = await supabase

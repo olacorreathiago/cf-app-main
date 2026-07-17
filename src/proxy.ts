@@ -91,7 +91,7 @@ export async function proxy(request: NextRequest) {
   // Authenticated user hitting login page → redirect to dashboard
   if (user && pathname === "/login") {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/athlete";
     return NextResponse.redirect(url);
   }
 

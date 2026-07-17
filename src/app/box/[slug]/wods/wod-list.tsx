@@ -22,6 +22,8 @@ const CATEGORY_LABELS: Record<WodCategory, string> = {
   notables:     "Notables",
   games:        "Games",
   weightlifting:"Weightlifting",
+  endurance:    "Endurance",
+  gymnastics:   "Gymnastics",
   original:     "Original",
 };
 
@@ -82,9 +84,9 @@ export function WodList({ wods, benchmarks, boxId }: Props) {
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold text-text-primary">WODs</h1>
-          <p className="text-sm text-text-tertiary mt-0.5">
-            Cria e publica os treinos da tua box.
+          <h1 className="font-display text-2xl uppercase text-text-primary">WODs</h1>
+          <p className="label-caps mt-1 text-text-tertiary">
+            Cria e publica os treinos da tua box
           </p>
         </div>
         <button

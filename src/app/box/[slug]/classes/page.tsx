@@ -30,7 +30,7 @@ export default async function ClassesPage({ params, searchParams }: Props) {
     .eq("slug", slug)
     .single();
 
-  if (!box) redirect("/dashboard");
+  if (!box) redirect("/athlete");
 
   const { data: membership } = await supabase
     .from("memberships")
@@ -40,7 +40,7 @@ export default async function ClassesPage({ params, searchParams }: Props) {
     .in("role", ["owner", "partner", "manager", "coach"])
     .maybeSingle();
 
-  if (!membership) redirect("/dashboard");
+  if (!membership) redirect("/athlete");
 
   // Week window
   const weekStart = week
@@ -220,7 +220,7 @@ export default async function ClassesPage({ params, searchParams }: Props) {
   }));
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-8">
+    <main className="mx-auto w-full max-w-3xl px-5 py-7">
       <ClassesClient
         days={clientDays}
         boxId={box.id}

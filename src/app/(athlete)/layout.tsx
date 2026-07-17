@@ -3,8 +3,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "@/app/dashboard/actions";
-import { BoxSelector } from "./box-selector";
-import { AthleteSidebar, AthleteBottomNav } from "./athlete-sidebar";
+import { AthleteSidebar, AthleteBottomNav, BoxSwitchChip } from "./athlete-sidebar";
+import { AppLogo } from "@/components/shared/app-logo";
 import type { AthleteBox, AthleteProfileData } from "@/lib/athlete/dashboard-actions";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { getUnreadCount, listNotifications, getPreferences } from "@/lib/notifications/queries";
@@ -125,7 +125,7 @@ export default async function AthleteLayout({ children }: { children: React.Reac
   // Fetch all active boxes
   const { data: memberships } = await supabase
     .from("memberships")
-    .select("role, status, box_id, boxes(id, name, slug, logo_url)")
+    .select("role, status, box_id, boxes(id, name, slug, logo_url, approval_status)")
     .eq("user_id", user.id)
     .in("status", ["active", "suspended"])
     .order("created_at");
@@ -133,9 +133,9 @@ export default async function AthleteLayout({ children }: { children: React.Reac
   const allBoxes: AthleteBox[] = (memberships ?? [])
     .filter((m) => m.status === "active")
     .map((m) => {
-      const box = m.boxes as unknown as { id: string; name: string; slug: string; logo_url: string | null } | null;
+      const box = m.boxes as unknown as { id: string; name: string; slug: string; logo_url: string | null; approval_status: string | null } | null;
       if (!box?.id) return null;
-      return { id: box.id, name: box.name, slug: box.slug, logo_url: box.logo_url, role: m.role };
+      return { id: box.id, name: box.name, slug: box.slug, logo_url: box.logo_url, role: m.role, approval_status: box.approval_status };
     })
     .filter((b): b is AthleteBox => b !== null);
 
@@ -156,22 +156,20 @@ export default async function AthleteLayout({ children }: { children: React.Reac
       ])
     : [0, [], []];
 
-  // Athlete who was given a staff role in a box — show box management link
-  const STAFF_ROLES = ["owner", "partner", "manager", "coach"];
-  const staffBox = isProfessional
-    ? null
-    : allBoxes.find((b) => STAFF_ROLES.includes(b.role)) ?? null;
-
   return (
     <div className="flex h-[100svh] bg-bg-base text-foreground">
 
       {/* ── Sidebar (desktop) ─────────────────────────────────── */}
-      <aside className="hidden lg:flex w-56 shrink-0 flex-col border-r border-border bg-bg-base">
-        {/* Box selector */}
-        <BoxSelector boxes={allBoxes} activeBox={activeBox} />
+      <aside className="hidden lg:flex w-56 shrink-0 flex-col bg-bg-base">
+        {/* Wordmark */}
+        <div className="px-5 pb-4 pt-6">
+          <Link href="/athlete" aria-label="Início">
+            <AppLogo size="xl" compact />
+          </Link>
+        </div>
 
         {/* Nav */}
-        <AthleteSidebar />
+        <AthleteSidebar boxes={allBoxes} activeBox={activeBox} isProfessional={isProfessional} />
       </aside>
 
       {/* ── Main area ─────────────────────────────────────────── */}
@@ -179,17 +177,9 @@ export default async function AthleteLayout({ children }: { children: React.Reac
 
         {/* Top header */}
         <header className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3">
-          {/* Mobile: box name chip */}
-          <div className="flex items-center gap-2 lg:hidden">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-accent-fg">
-              <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
-                <rect x="1.5" y="1.5" width="11" height="11" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M1.5 5.5h11" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-            </div>
-            <span className="text-sm font-semibold text-text-primary truncate max-w-[140px]">
-              {activeBox?.name ?? "Sem box"}
-            </span>
+          {/* Mobile: tappable box switcher chip */}
+          <div className="lg:hidden">
+            <BoxSwitchChip boxes={allBoxes} activeBox={activeBox} isProfessional={isProfessional} />
           </div>
 
           {/* Desktop: empty left side (sidebar handles nav) */}
@@ -197,36 +187,11 @@ export default async function AthleteLayout({ children }: { children: React.Reac
 
           {/* Right actions */}
           <div className="flex items-center gap-3">
-            {/* Link to box management */}
-            {isProfessional && (
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors duration-150 hover:border-accent/30 hover:text-text-primary"
-              >
-                <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                  <rect x="1.5" y="1.5" width="11" height="11" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
-                  <path d="M1.5 5.5h11" stroke="currentColor" strokeWidth="1.5" />
-                </svg>
-                Gerir box
-              </Link>
-            )}
-            {staffBox && (
-              <Link
-                href={`/box/${staffBox.slug}`}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors duration-150 hover:border-accent/30 hover:text-text-primary"
-              >
-                <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                  <rect x="1.5" y="1.5" width="11" height="11" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
-                  <path d="M1.5 5.5h11" stroke="currentColor" strokeWidth="1.5" />
-                </svg>
-                {staffBox.role === "coach" ? "Área de coach" : "Gerir box"}
-              </Link>
-            )}
-
             {/* Notifications */}
             {activeBox && (
               <NotificationBell
                 boxId={activeBox.id}
+                userId={user.id}
                 initialUnread={notifUnread}
                 initialNotifications={notifList}
                 initialPrefs={notifPrefs}
@@ -255,7 +220,7 @@ export default async function AthleteLayout({ children }: { children: React.Reac
 
         {/* Mobile bottom nav */}
         <nav className="fixed bottom-0 left-0 right-0 z-10 flex lg:hidden border-t border-border bg-bg-base/90 backdrop-blur-sm">
-          <AthleteBottomNav />
+          <AthleteBottomNav boxes={allBoxes} activeBox={activeBox} isProfessional={isProfessional} />
         </nav>
       </div>
     </div>

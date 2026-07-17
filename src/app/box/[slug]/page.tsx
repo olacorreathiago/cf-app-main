@@ -88,7 +88,7 @@ export default async function BoxOverviewPage({ params }: Props) {
     .eq("slug", slug)
     .single();
 
-  if (!box) redirect("/dashboard");
+  if (!box) redirect("/athlete");
 
   const { data: membership } = await supabase
     .from("memberships")
@@ -98,85 +98,137 @@ export default async function BoxOverviewPage({ params }: Props) {
     .in("role", ["owner", "partner", "manager", "coach"])
     .maybeSingle();
 
-  if (!membership) redirect("/dashboard");
+  if (!membership) redirect("/athlete");
 
   const isManager = ["owner", "partner", "manager"].includes(membership.role);
   const overview = await getBoxOverviewData(box.id);
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-6 space-y-5">
+    <div className="mx-auto w-full max-w-6xl px-5 py-7">
       {box.approval_status !== "approved" && (
-        <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-4">
-          <p className="text-sm text-yellow-600 dark:text-yellow-400">
-            A box está em análise pela plataforma. Algumas funcionalidades estão limitadas até à aprovação.
+        <div className="mb-6 flex items-center gap-3 rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] px-4 py-3">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-400/15 text-amber-400">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M8 5v3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <circle cx="8" cy="11" r="0.9" fill="currentColor" />
+              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" />
+            </svg>
+          </span>
+          <p className="text-sm text-amber-500 dark:text-amber-300/90">
+            A box <span className="font-semibold">{box.name}</span> está em análise pela plataforma. Algumas funcionalidades estão limitadas até à aprovação.
           </p>
         </div>
       )}
 
-      {/* Hoje */}
-      <section className="rounded-2xl border border-border bg-bg-card overflow-hidden">
-        <div className="flex items-center justify-between px-5 pt-5 pb-3">
-          <p className="label-caps text-text-tertiary">Hoje</p>
-          <Link
-            href={`/box/${slug}/classes`}
-            className="text-xs text-text-tertiary hover:text-text-secondary transition-colors"
-          >
-            Ver todas →
-          </Link>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px]">
+        {/* ── LEFT COLUMN ─────────────────────────────────── */}
+        <div className="space-y-8 min-w-0">
+
+          {/* Aulas de hoje */}
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="label-caps text-text-tertiary">Aulas de hoje</p>
+              <Link
+                href={`/box/${slug}/today`}
+                className="inline-flex items-center gap-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary"
+              >
+                Gerir dia de hoje
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2.5 6h6M6 3l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </Link>
+            </div>
+
+            {overview.todayClasses.length === 0 ? (
+              <div className="rounded-2xl border border-border bg-bg-card px-5 py-10 text-center">
+                <p className="text-sm text-text-tertiary">Sem aulas publicadas para hoje.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {overview.todayClasses.map((cls) => (
+                  <ClassRow key={cls.id} cls={cls} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Estatísticas */}
+          <section className="space-y-3">
+            <p className="label-caps text-text-tertiary">Estatísticas</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <StatCard label="Membros ativos" value={String(overview.memberCount)} />
+              <StatCard label="Aulas esta semana" value={String(overview.classesThisWeek)} />
+              <StatCard label="WODs publicados" value={String(overview.totalWods)} />
+            </div>
+          </section>
         </div>
 
-        {overview.todayClasses.length === 0 ? (
-          <div className="px-5 pb-5">
-            <p className="text-sm text-text-tertiary">Sem aulas publicadas para hoje.</p>
-          </div>
-        ) : (
-          <div className="px-5 pb-4 space-y-2">
-            {overview.todayClasses.map((cls) => (
-              <ClassRow key={cls.id} cls={cls} />
-            ))}
+        {/* ── RIGHT COLUMN — Ações rápidas ────────────────── */}
+        {isManager && (
+          <div className="space-y-3">
+            <p className="label-caps text-text-tertiary">Ações rápidas</p>
+            <div className="space-y-3 rounded-2xl bg-bg-card/40 p-3">
+              <QuickAction href={`/box/${slug}/classes`} label="Publicar Aulas" icon={ClassesActionIcon} />
+              <QuickAction href={`/box/${slug}/wods`} label="Criar Wod" icon={WodActionIcon} />
+              <QuickAction href={`/box/${slug}/members`} label="Convidar Membros" icon={MembersActionIcon} />
+              <QuickAction href={`/box/${slug}/posts`} label="Publicar no Feed" icon={FeedActionIcon} />
+            </div>
           </div>
         )}
-      </section>
-
-      {/* Quick Stats */}
-      <section className="grid grid-cols-3 gap-3">
-        <StatCard label="Membros ativos" value={String(overview.memberCount)} />
-        <StatCard label="Aulas esta semana" value={String(overview.classesThisWeek)} />
-        <StatCard label="WODs publicados" value={String(overview.totalWods)} />
-      </section>
-
-      {/* Ações rápidas — só para manager+ */}
-      {isManager && (
-        <section className="rounded-2xl border border-border bg-bg-card p-5 space-y-3">
-          <p className="label-caps text-text-tertiary">Ações rápidas</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <QuickAction href={`/box/${slug}/classes`} label="Publicar aula" />
-            <QuickAction href={`/box/${slug}/wods`} label="Criar WOD" />
-            <QuickAction href={`/box/${slug}/members`} label="Convidar membro" />
-            <QuickAction href={`/box/${slug}/posts`} label="Criar post" />
-          </div>
-        </section>
-      )}
+      </div>
     </div>
   );
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-bg-card p-4 space-y-1">
-      <p className="text-xs text-text-tertiary leading-tight">{label}</p>
-      <p className="text-2xl font-semibold text-text-primary">{value}</p>
+    <div className="rounded-2xl border border-border bg-bg-card p-5">
+      <p className="text-sm text-text-secondary leading-tight">{label}</p>
+      <p className="mt-6 font-display text-4xl font-bold leading-none text-text-primary">{value}</p>
     </div>
   );
 }
 
-function QuickAction({ href, label }: { href: string; label: string }) {
+const ClassesActionIcon = (
+  <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <rect x="1" y="6" width="2.5" height="4" rx="1" stroke="currentColor" strokeWidth="1.35" />
+    <rect x="12.5" y="6" width="2.5" height="4" rx="1" stroke="currentColor" strokeWidth="1.35" />
+    <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+  </svg>
+);
+const WodActionIcon = (
+  <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M8 1.5L2 4.5v4.5c0 3 2.4 5.5 6 5.5s6-2.5 6-5.5V4.5L8 1.5z" stroke="currentColor" strokeWidth="1.35" strokeLinejoin="round" />
+    <path d="M5.5 8.5L7 10l3.5-3.5" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const MembersActionIcon = (
+  <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.35" />
+    <path d="M1 13c0-2.761 2.239-5 5-5s5 2.239 5 5" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+    <path d="M12 7c1.38 0 2.5 1.12 2.5 2.5v3" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+    <path d="M10 4.5a1.75 1.75 0 100-1" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+  </svg>
+);
+const FeedActionIcon = (
+  <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M11 2.5l2.5 2.5L6 12.5 3 13.5l1-3L11 2.5z" stroke="currentColor" strokeWidth="1.35" strokeLinejoin="round" />
+  </svg>
+);
+
+function QuickAction({ href, label, icon }: { href: string; label: string; icon: React.ReactNode }) {
   return (
     <Link
       href={href}
-      className="flex items-center justify-center rounded-xl border border-border bg-bg-base px-3 py-3 text-xs font-medium text-text-secondary hover:bg-bg-input hover:text-text-primary transition-colors text-center leading-tight"
+      className="group flex flex-col gap-8 rounded-xl border border-border bg-bg-card p-4 transition-colors duration-150 hover:border-accent/30 hover:bg-bg-card-hover"
     >
-      {label}
+      <span className="text-text-tertiary transition-colors duration-150 group-hover:text-accent">{icon}</span>
+      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-text-primary">
+        {label}
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-text-tertiary transition-transform duration-200 group-hover:translate-x-0.5">
+          <path d="M2.5 6h6M6 3l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
     </Link>
   );
 }

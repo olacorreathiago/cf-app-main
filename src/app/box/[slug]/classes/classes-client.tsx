@@ -248,11 +248,11 @@ export function ClassesClient({
   return (
     <>
       {/* Header */}
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mb-6 flex flex-col md:flex-row items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold text-text-primary">Gestão de aulas</h1>
-          <p className="text-sm text-text-tertiary mt-0.5">
-            Publica e gere as aulas da semana.
+          <h1 className="font-display text-2xl uppercase text-text-primary">Aulas</h1>
+          <p className="label-caps mt-1 text-text-tertiary">
+            Publica e gere as aulas da semana
           </p>
         </div>
         <div className="flex items-center gap-2">
