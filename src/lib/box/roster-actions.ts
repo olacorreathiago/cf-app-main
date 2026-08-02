@@ -74,7 +74,7 @@ export async function getClassRoster(classId: string, boxId: string): Promise<Cl
   // All active members of the box not yet in the class — use admin to bypass RLS
   const { data: memberships } = await supabaseAdmin
     .from("memberships")
-    .select("user_id, profiles(full_name, nickname, avatar_url)")
+    .select("user_id, profiles:user_id(full_name, nickname, avatar_url)")
     .eq("box_id", boxId)
     .eq("status", "active")
     .order("user_id");

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BoxSidebar, BoxNav, BoxSwitchChip, type StaffBox } from "./box-nav";
 import { BoxCard } from "./box-card";
+import { ReopenBanner } from "./reopen-banner";
 import { AppLogo } from "@/components/shared/app-logo";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { getUnreadCount, listNotifications, getPreferences } from "@/lib/notifications/queries";
@@ -99,7 +100,7 @@ export default async function BoxLayout({ children, params }: Props) {
 
   const { data: box } = await supabase
     .from("boxes")
-    .select("id, name, slug, logo_url, approval_status, city, created_at")
+    .select("id, name, slug, logo_url, approval_status, city, created_at, deleted_at")
     .eq("slug", slug)
     .single();
 
@@ -114,6 +115,9 @@ export default async function BoxLayout({ children, params }: Props) {
     .maybeSingle();
 
   if (!membership) redirect("/athlete");
+
+  // A closed box only lets its owner back in (to reopen); everyone else is barred.
+  if (box.deleted_at && membership.role !== "owner") redirect("/athlete");
 
   // All boxes this user manages — for the mobile box switcher.
   const { data: staffMemberships } = await supabase
@@ -170,7 +174,7 @@ export default async function BoxLayout({ children, params }: Props) {
         </div>
 
         {/* Nav */}
-        <BoxSidebar slug={slug} role={membership.role} />
+        <BoxSidebar slug={slug} role={membership.role} boxClosed={!!box.deleted_at} />
 
         {/* Box identity card */}
         <BoxCard
@@ -216,12 +220,13 @@ export default async function BoxLayout({ children, params }: Props) {
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
+          {box.deleted_at && <ReopenBanner boxId={box.id} deletedAt={box.deleted_at} />}
           {children}
         </main>
 
         {/* Mobile bottom nav */}
         <nav className="fixed bottom-0 left-0 right-0 z-10 flex lg:hidden border-t border-border bg-bg-base/90 backdrop-blur-sm">
-          <BoxNav slug={slug} role={membership.role} managedBoxes={managedBoxes} />
+          <BoxNav slug={slug} role={membership.role} managedBoxes={managedBoxes} boxClosed={!!box.deleted_at} />
         </nav>
       </div>
     </div>

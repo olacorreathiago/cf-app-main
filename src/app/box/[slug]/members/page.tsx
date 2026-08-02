@@ -52,7 +52,7 @@ export default async function MembersPage({ params }: Props) {
   const [{ data: memberships }, { data: invites }, { data: trials }, { data: dropIns }, { data: upcomingClasses }] = await Promise.all([
     supabaseAdmin
       .from("memberships")
-      .select("id, role, status, profiles(full_name, email, avatar_url)")
+      .select("id, role, status, profiles:user_id(full_name, email, avatar_url)")
       .eq("box_id", box.id)
       .in("status", ["active", "suspended"]),
     supabase

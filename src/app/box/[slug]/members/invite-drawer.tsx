@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { FieldInput, PrimaryButton } from "@/components/shared";
+import { FieldInput, PrimaryButton, DrawerShell } from "@/components/shared";
 import { createEmailInvite } from "@/lib/invite/actions";
 import { APP_CONFIG } from "@/lib/config";
 import { cn } from "@/lib/utils";
@@ -39,15 +38,6 @@ export function InviteDrawer({ open, onClose, boxId, boxName, joinToken }: Invit
     resolver: zodResolver(schema),
     defaultValues: { email: "" },
   });
-
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") handleClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
 
   function handleClose() {
     form.reset();
@@ -86,61 +76,22 @@ export function InviteDrawer({ open, onClose, boxId, boxName, joinToken }: Invit
   }
 
   return (
-    <AnimatePresence>
-      {open && (
+    <DrawerShell
+      open={open}
+      onClose={handleClose}
+      widthClassName="lg:w-[420px]"
+      header={
         <>
-          {/* Backdrop */}
-          <motion.div
-            key="backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-            onClick={handleClose}
-          />
-
-          {/* Drawer */}
-          <motion.div
-            key="drawer"
-            initial={{ y: "100%", opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: "100%", opacity: 0 }}
-            transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className={cn(
-              "fixed bottom-0 left-0 right-0 z-50",
-              "rounded-t-3xl border-t border-border bg-bg-base px-6 pb-10 pt-5",
-              "lg:bottom-0 lg:left-auto lg:right-0 lg:top-0 lg:w-[420px]",
-              "lg:rounded-none lg:rounded-l-3xl lg:border-l lg:border-t-0 lg:border-border",
-              "lg:pb-10 lg:pt-8"
-            )}
-          >
-            {/* Handle (mobile only) */}
-            <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-border lg:hidden" />
-
-            {/* Header */}
-            <div className="mb-6 flex items-start justify-between">
-              <div>
-                <p className="label-caps text-text-tertiary mb-1">Convidar membro</p>
-                <h2 className="font-display text-2xl leading-tight text-text-primary">
-                  {boxName}
-                </h2>
-                <p className="mt-1 text-sm text-text-secondary">
-                  Partilha o link ou envia um convite por email.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleClose}
-                aria-label="Fechar"
-                className="ml-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-input text-text-tertiary transition-colors hover:text-text-primary"
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
-
+          <p className="label-caps text-text-tertiary mb-1">Convidar membro</p>
+          <h2 className="font-display text-2xl leading-tight text-text-primary">
+            {boxName}
+          </h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            Partilha o link ou envia um convite por email.
+          </p>
+        </>
+      }
+    >
             <div className="space-y-5">
               {/* Permanent box link */}
               <div className="space-y-2">
@@ -241,9 +192,6 @@ export function InviteDrawer({ open, onClose, boxId, boxName, joinToken }: Invit
                 </form>
               )}
             </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    </DrawerShell>
   );
 }

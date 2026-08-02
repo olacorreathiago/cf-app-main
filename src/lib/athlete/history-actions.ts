@@ -32,6 +32,9 @@ export interface AthleteHistoryData {
   results: AthleteResultEntry[];
   prs: AthletePrEntry[];
   activeBoxId: string | null;
+  /** Set when the currently viewed box has been closed by its owner. */
+  activeBoxClosed: boolean;
+  activeBoxClosureMessage: string | null;
 }
 
 export async function getAthleteHistory(): Promise<AthleteHistoryData> {
@@ -39,22 +42,36 @@ export async function getAthleteHistory(): Promise<AthleteHistoryData> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // Boxes the athlete is active in, plus closed boxes they used to belong to
+  // (results/PRs there stay visible, just badged).
   const { data: memberships } = await supabase
     .from("memberships")
-    .select("box_id")
+    .select("box_id, status, boxes(deleted_at, closure_message)")
     .eq("user_id", user.id)
-    .eq("status", "active")
     .order("created_at");
 
-  const allBoxIds = (memberships ?? []).map((m) => m.box_id);
+  const eligible = (memberships ?? [])
+    .map((m) => ({
+      box_id: m.box_id,
+      box: m.boxes as unknown as { deleted_at: string | null; closure_message: string | null } | null,
+      status: m.status,
+    }))
+    .filter((m) => m.status === "active" || m.box?.deleted_at);
+
+  const allBoxIds = eligible.map((m) => m.box_id);
   if (allBoxIds.length === 0) {
-    return { results: [], prs: [], activeBoxId: null };
+    return { results: [], prs: [], activeBoxId: null, activeBoxClosed: false, activeBoxClosureMessage: null };
   }
 
   const cookieStore = await cookies();
   const preferredBoxId = cookieStore.get("athlete_active_box")?.value;
-  const activeBoxId =
-    (preferredBoxId && allBoxIds.includes(preferredBoxId) ? preferredBoxId : null) ?? allBoxIds[0];
+  const activeEntry =
+    (preferredBoxId ? eligible.find((m) => m.box_id === preferredBoxId) : null) ??
+    eligible.find((m) => !m.box?.deleted_at) ??
+    eligible[0];
+  const activeBoxId = activeEntry.box_id;
+  const activeBoxClosed = !!activeEntry.box?.deleted_at;
+  const activeBoxClosureMessage = activeEntry.box?.closure_message ?? null;
 
   const { data: rawResults } = await supabase
     .from("wod_results")
@@ -108,5 +125,5 @@ export async function getAthleteHistory(): Promise<AthleteHistoryData> {
     achieved_at: p.achieved_at,
   }));
 
-  return { results, prs, activeBoxId };
+  return { results, prs, activeBoxId, activeBoxClosed, activeBoxClosureMessage };
 }

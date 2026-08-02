@@ -12,7 +12,8 @@ export type NotificationType =
   | "class_starting"
   | "new_drop_in"
   | "payment_received"
-  | "payment_overdue";
+  | "payment_overdue"
+  | "box_closed";
 
 export interface NotificationData {
   class_id?: string;

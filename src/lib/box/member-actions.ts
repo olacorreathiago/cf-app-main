@@ -15,6 +15,7 @@ async function assertStaffRole(boxId: string) {
     .select("role")
     .eq("user_id", user.id)
     .eq("box_id", boxId)
+    .eq("status", "active")
     .in("role", ["owner", "partner", "manager"])
     .maybeSingle();
 
@@ -103,12 +104,16 @@ export async function changeRole(
 }
 
 export async function removeMember(membershipId: string, boxId: string, slug: string) {
-  await assertStaffRole(boxId);
+  const { user } = await assertStaffRole(boxId);
   await assertNotOwner(membershipId);
 
+  // Soft removal — the row (and the athlete's tenure/notes/billing history)
+  // survives. removed_at/removed_by drive the membership_periods trigger,
+  // which closes the open period so past payments stay in the billing
+  // history but the gap between now and any future re-invite doesn't.
   const { error } = await supabaseAdmin
     .from("memberships")
-    .delete()
+    .update({ status: "inactive", removed_at: new Date().toISOString(), removed_by: user.id })
     .eq("id", membershipId)
     .eq("box_id", boxId);
 

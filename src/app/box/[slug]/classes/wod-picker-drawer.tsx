@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { assignModalityWod } from "@/lib/box/classes-actions";
-import { PrimaryButton } from "@/components/shared";
+import { PrimaryButton, DrawerShell } from "@/components/shared";
 import type { Wod, ClassTemplate } from "@/types";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -45,15 +44,6 @@ export function WodPickerDrawer({
     if (open) setSelected(currentWodIds);
   }, [open, currentWodIds]);
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
   function toggleWod(id: string) {
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -86,57 +76,44 @@ export function WodPickerDrawer({
     selected.some((id) => !currentWodIds.includes(id));
 
   return (
-    <AnimatePresence>
-      {open && (
+    <DrawerShell
+      open={open}
+      onClose={onClose}
+      header={
         <>
-          <motion.div
-            key="backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-            onClick={onClose}
-          />
-          <motion.div
-            key="drawer"
-            initial={{ y: "100%", opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: "100%", opacity: 0 }}
-            transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className={cn(
-              "fixed bottom-0 left-0 right-0 z-50",
-              "rounded-t-3xl border-t border-border bg-bg-base px-6 pb-10 pt-5",
-              "lg:bottom-0 lg:left-auto lg:right-0 lg:top-0 lg:w-[440px]",
-              "lg:rounded-none lg:rounded-l-3xl lg:border-l lg:border-t-0",
-              "lg:pb-10 lg:pt-8 lg:overflow-y-auto"
-            )}
-          >
-            <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-border lg:hidden" />
-
-            {/* Header */}
-            <div className="mb-6 flex items-start justify-between">
-              <div>
-                <p className="label-caps text-text-tertiary mb-1">WODs do dia</p>
-                <h2 className="font-display text-2xl leading-tight text-text-primary">
-                  {modalityName}
-                </h2>
-                <p className="mt-1 text-sm text-text-secondary">
-                  {formatDate(date)} · selecciona um ou mais blocos
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Fechar"
-                className="ml-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-input text-text-tertiary hover:text-text-primary transition-colors"
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
-
+          <p className="label-caps text-text-tertiary mb-1">WODs do dia</p>
+          <h2 className="font-display text-2xl leading-tight text-text-primary">
+            {modalityName}
+          </h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            {formatDate(date)} · selecciona um ou mais blocos
+          </p>
+        </>
+      }
+      footer={
+        <>
+          <PrimaryButton loading={pending} onClick={handleConfirm} disabled={!hasChanges}>
+            {selected.length === 0
+              ? "Confirmar (sem WOD)"
+              : selected.length === 1
+              ? "Confirmar WOD"
+              : `Confirmar ${selected.length} WODs`}
+          </PrimaryButton>
+          {currentWodIds.length > 0 && selected.length > 0 && (
+            <PrimaryButton
+              variant="secondary"
+              loading={pending}
+              onClick={() => setSelected([])}
+            >
+              Remover todos
+            </PrimaryButton>
+          )}
+          <PrimaryButton variant="secondary" onClick={onClose}>
+            Cancelar
+          </PrimaryButton>
+        </>
+      }
+    >
             {/* Selection summary */}
             {selected.length > 0 && (
               <div className="mb-4 flex flex-wrap gap-1.5 p-3 rounded-xl bg-bg-input border border-border">
@@ -214,33 +191,7 @@ export function WodPickerDrawer({
                 </div>
               </div>
             )}
-
-            {/* Actions */}
-            <div className="space-y-2 pt-1">
-              <PrimaryButton loading={pending} onClick={handleConfirm} disabled={!hasChanges}>
-                {selected.length === 0
-                  ? "Confirmar (sem WOD)"
-                  : selected.length === 1
-                  ? "Confirmar WOD"
-                  : `Confirmar ${selected.length} WODs`}
-              </PrimaryButton>
-              {currentWodIds.length > 0 && selected.length > 0 && (
-                <PrimaryButton
-                  variant="secondary"
-                  loading={pending}
-                  onClick={() => setSelected([])}
-                >
-                  Remover todos
-                </PrimaryButton>
-              )}
-              <PrimaryButton variant="secondary" onClick={onClose}>
-                Cancelar
-              </PrimaryButton>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    </DrawerShell>
   );
 }
 

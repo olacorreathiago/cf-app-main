@@ -46,7 +46,7 @@ export default async function CoachTodayPage({ params, searchParams }: Props) {
     getCoachTodayData(box.id),
     supabaseAdmin
       .from("memberships")
-      .select("user_id, profiles(id, full_name)")
+      .select("user_id, profiles:user_id(id, full_name)")
       .eq("box_id", box.id)
       .eq("status", "active")
       .in("role", ["owner", "partner", "manager", "coach"]),

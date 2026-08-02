@@ -39,7 +39,7 @@ export async function getAvailableMembersForClass(
       .in("status", ["confirmed", "waitlist"]),
     supabaseAdmin
       .from("memberships")
-      .select("user_id, profiles(full_name, avatar_url)")
+      .select("user_id, profiles:user_id(full_name, avatar_url)")
       .eq("box_id", boxId)
       .eq("status", "active"),
   ]);

@@ -29,11 +29,11 @@ export default async function JoinPage({ params }: Props) {
 
   const { data: box } = await supabase
     .from("boxes")
-    .select("id, name, approval_status")
+    .select("id, name, approval_status, deleted_at")
     .eq("join_token", token)
     .single();
 
-  if (!box || box.approval_status !== "approved") {
+  if (!box || box.approval_status !== "approved" || box.deleted_at) {
     return <JoinError message="Este link de convite é inválido ou a box ainda não está ativa." />;
   }
 

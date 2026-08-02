@@ -9,6 +9,7 @@ import {
   updatePlan,
   togglePlanActive,
   deletePlan,
+  setDefaultPlan,
   type Plan,
 } from "@/lib/box/plan-actions";
 
@@ -16,6 +17,7 @@ interface Props {
   plans: Plan[];
   boxId: string;
   slug: string;
+  defaultPlanId: string | null;
 }
 
 const intervalLabel: Record<string, string> = {
@@ -23,11 +25,27 @@ const intervalLabel: Record<string, string> = {
   annual: "Anual",
 };
 
-export function PlansClient({ plans: initial, boxId, slug }: Props) {
+export function PlansClient({ plans: initial, boxId, slug, defaultPlanId: initialDefaultPlanId }: Props) {
   const [plans, setPlans] = useState(initial);
+  const [defaultPlanId, setDefaultPlanId] = useState(initialDefaultPlanId);
   const [showForm, setShowForm] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  function handleSetDefault(plan: Plan) {
+    const nextDefaultId = defaultPlanId === plan.id ? null : plan.id;
+    const prevDefaultId = defaultPlanId;
+    setDefaultPlanId(nextDefaultId);
+    startTransition(async () => {
+      const res = await setDefaultPlan(boxId, nextDefaultId, slug);
+      if (res.error) {
+        toast.error(res.error);
+        setDefaultPlanId(prevDefaultId);
+      } else {
+        toast.success(nextDefaultId ? `"${plan.name}" definido como plano padrão.` : "Plano padrão removido.");
+      }
+    });
+  }
 
   function handleCreate(plan: Plan) {
     setPlans((prev) => [plan, ...prev]);
@@ -102,10 +120,12 @@ export function PlansClient({ plans: initial, boxId, slug }: Props) {
                 <PlanCard
                   key={plan.id}
                   plan={plan}
+                  isDefault={plan.id === defaultPlanId}
                   isPending={isPending}
                   onEdit={() => { setEditingPlan(plan); setShowForm(true); }}
                   onToggle={() => handleToggleActive(plan)}
                   onDelete={() => handleDelete(plan.id)}
+                  onSetDefault={() => handleSetDefault(plan)}
                 />
               ))}
             </div>
@@ -120,10 +140,12 @@ export function PlansClient({ plans: initial, boxId, slug }: Props) {
                 <PlanCard
                   key={plan.id}
                   plan={plan}
+                  isDefault={plan.id === defaultPlanId}
                   isPending={isPending}
                   onEdit={() => { setEditingPlan(plan); setShowForm(true); }}
                   onToggle={() => handleToggleActive(plan)}
                   onDelete={() => handleDelete(plan.id)}
+                  onSetDefault={() => handleSetDefault(plan)}
                 />
               ))}
             </div>
@@ -149,16 +171,20 @@ export function PlansClient({ plans: initial, boxId, slug }: Props) {
 
 function PlanCard({
   plan,
+  isDefault,
   isPending,
   onEdit,
   onToggle,
   onDelete,
+  onSetDefault,
 }: {
   plan: Plan;
+  isDefault: boolean;
   isPending: boolean;
   onEdit: () => void;
   onToggle: () => void;
   onDelete: () => void;
+  onSetDefault: () => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -181,6 +207,11 @@ function PlanCard({
                 Inativo
               </span>
             )}
+            {isDefault && (
+              <span className="rounded-full bg-accent/15 px-2.5 py-0.5 text-[10px] font-medium text-accent">
+                Padrão
+              </span>
+            )}
           </div>
           <div className="mt-1 flex items-baseline gap-1.5">
             <span className="text-2xl font-bold text-text-primary tabular-nums">{plan.price.toFixed(2)} €</span>
@@ -201,6 +232,22 @@ function PlanCard({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={onSetDefault}
+            disabled={isPending}
+            title={isDefault ? "Remover como plano padrão" : "Definir como plano padrão"}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:opacity-40",
+              isDefault
+                ? "text-accent hover:bg-accent/10"
+                : "text-text-tertiary hover:bg-bg-input hover:text-text-primary"
+            )}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill={isDefault ? "currentColor" : "none"}>
+              <path d="M7 1.2l1.8 3.65 4.02.58-2.91 2.84.69 4.01L7 10.4l-3.6 1.89.69-4.01L1.18 5.43l4.02-.58L7 1.2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            </svg>
+          </button>
           <button
             type="button"
             onClick={onEdit}

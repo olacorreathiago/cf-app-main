@@ -50,7 +50,7 @@ export default async function AthleteProfilePage({ params }: Props) {
   // Load athlete membership in this box
   const { data: membership } = await supabaseAdmin
     .from("memberships")
-    .select("id, role, status, notes, plan_id, created_at, profiles(id, full_name, email, avatar_url, phone)")
+    .select("id, role, status, notes, plan_id, created_at, profiles:user_id(id, full_name, email, avatar_url, phone)")
     .eq("id", athleteId)
     .eq("box_id", box.id)
     .maybeSingle();

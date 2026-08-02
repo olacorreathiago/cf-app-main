@@ -20,6 +20,7 @@ async function assertStaffWrite(boxId: string) {
     .select("role")
     .eq("user_id", user.id)
     .eq("box_id", boxId)
+    .eq("status", "active")
     .in("role", ["owner", "partner", "manager"])
     .maybeSingle();
 
@@ -165,14 +166,22 @@ export async function getBillingData(boxId: string, year: number, month: number)
   const nextYear = month === 12 ? year + 1 : year;
   const periodEnd = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
 
-  const [membersRes, paymentsRes, dropInPaymentsRes] = await Promise.all([
+  const [periodsRes, paymentsRes, dropInPaymentsRes] = await Promise.all([
+    // Members whose membership_period overlaps this month — a closed period
+    // (staff removal) always counts (it's history, they were a member
+    // then), an open/ongoing period only counts if the membership is
+    // currently active/trial (same rule the old status-only query applied,
+    // now also correct across a remove → gap → re-include cycle).
     supabase
-      .from("memberships")
-      .select("id, user_id, plan_id, status, profiles:user_id(full_name, email, avatar_url), plans:plan_id(name, price, billing_interval)")
-      .eq("box_id", boxId)
-      .eq("role", "athlete")
-      .in("status", ["active", "trial"])
-      .not("plan_id", "is", null),
+      .from("membership_periods")
+      .select(
+        "started_at, ended_at, memberships!inner(id, user_id, plan_id, status, start_date, created_at, profiles:user_id(full_name, email, avatar_url), plans:plan_id(name, price, billing_interval))"
+      )
+      .eq("memberships.box_id", boxId)
+      .eq("memberships.role", "athlete")
+      .not("memberships.plan_id", "is", null)
+      .lt("started_at", periodEnd)
+      .or(`ended_at.is.null,ended_at.gte.${periodStart}`),
     supabase
       .from("payments")
       .select("*")
@@ -190,9 +199,34 @@ export async function getBillingData(boxId: string, year: number, month: number)
       .lt("created_at", periodEnd),
   ]);
 
-  if (membersRes.error) throw new Error(membersRes.error.message);
+  if (periodsRes.error) throw new Error(periodsRes.error.message);
   if (paymentsRes.error) throw new Error(paymentsRes.error.message);
   if (dropInPaymentsRes.error) throw new Error(dropInPaymentsRes.error.message);
+
+  type MembershipRow = {
+    id: string;
+    user_id: string;
+    plan_id: string | null;
+    status: string;
+    start_date: string | null;
+    created_at: string;
+    profiles: { full_name: string | null; email: string | null; avatar_url: string | null } | null;
+    plans: { name: string; price: number; billing_interval: string } | null;
+  };
+
+  // Closed periods are history — always shown, regardless of current
+  // status. An open/ongoing period only counts while the membership is
+  // still active/trial today (matches the pre-periods behavior for the
+  // current stint, and stays correct if that stint later gets suspended
+  // or removed).
+  const membersByMembershipId = new Map<string, MembershipRow>();
+  for (const row of periodsRes.data ?? []) {
+    const membership = row.memberships as unknown as MembershipRow;
+    if (!membership) continue;
+    if (row.ended_at === null && !["active", "trial"].includes(membership.status)) continue;
+    membersByMembershipId.set(membership.id, membership);
+  }
+  const members = [...membersByMembershipId.values()];
 
   // Enrich drop-in payments with name/email from drop_ins table
   const dropInRefIds = (dropInPaymentsRes.data ?? [])
@@ -222,7 +256,7 @@ export async function getBillingData(boxId: string, year: number, month: number)
   });
 
   return {
-    members: membersRes.data,
+    members,
     payments: paymentsRes.data as Payment[],
     dropInPayments: enrichedDropInPayments,
   };

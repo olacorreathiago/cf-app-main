@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import confetti from "canvas-confetti";
 import { recordWodResult, updateWodResult } from "@/lib/athlete/wod-result-actions";
-import { PrimaryButton, FieldInput } from "@/components/shared";
+import { PrimaryButton, FieldInput, DrawerShell } from "@/components/shared";
 import type { AthleteDashboardWod } from "@/lib/athlete/dashboard-actions";
 
 interface Props {
@@ -268,34 +268,33 @@ export function WodResultDrawer({ wod, boxId, classId, open, onClose, onSaved }:
     });
   }
 
+  const showFooter = tab === "resultado" && showForm;
+
   return (
-    <AnimatePresence>
-      {open && (
+    <DrawerShell
+      open={open}
+      onClose={onClose}
+      header={
         <>
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
-            transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 z-50 flex flex-col rounded-t-3xl border-t border-border bg-bg-base pt-5 lg:bottom-0 lg:left-auto lg:right-0 lg:top-0 lg:w-[440px] lg:rounded-none lg:rounded-l-3xl lg:border-l lg:border-t-0 lg:pt-8"
-            style={{ maxHeight: "92dvh" }}
-          >
-            {/* Drag handle */}
-            <div className="mx-auto mb-4 h-1 w-10 shrink-0 rounded-full bg-border lg:hidden" />
-
-            {/* Header */}
-            <div className="shrink-0 px-6 mb-5">
-              <p className="label-caps text-text-tertiary mb-1">Registar resultado</p>
-              <h2 className="font-display text-2xl text-text-primary">{wod.title}</h2>
-              <p className="text-sm text-text-tertiary mt-0.5">{wod.type}</p>
-            </div>
-
+          <p className="label-caps text-text-tertiary mb-1">Registar resultado</p>
+          <h2 className="font-display text-2xl text-text-primary">{wod.title}</h2>
+          <p className="text-sm text-text-tertiary mt-0.5">{wod.type}</p>
+        </>
+      }
+      footer={
+        showFooter ? (
+          <>
+            {error && <p className="text-sm text-error">{error}</p>}
+            <PrimaryButton onClick={handleSubmit} loading={pending}>
+              {updating ? "Atualizar resultado" : "Guardar resultado"}
+            </PrimaryButton>
+            <PrimaryButton variant="secondary" onClick={onClose} disabled={pending}>Cancelar</PrimaryButton>
+          </>
+        ) : undefined
+      }
+    >
             {/* Tabs */}
-            <div className="shrink-0 px-6 mb-5">
+            <div className="mb-5">
               <div className="flex rounded-xl border border-border overflow-hidden">
                 {(["resultado", "detalhes"] as Tab[]).map((t) => (
                   <button
@@ -321,7 +320,7 @@ export function WodResultDrawer({ wod, boxId, classId, open, onClose, onSaved }:
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
                   transition={{ duration: 0.3 }}
-                  className="mx-6 mb-4 rounded-2xl bg-amber-500/15 border border-amber-500/30 px-5 py-4 text-center shrink-0"
+                  className="mb-4 rounded-2xl bg-amber-500/15 border border-amber-500/30 px-5 py-4 text-center shrink-0"
                 >
                   <p className="text-2xl mb-1">🏆</p>
                   <p className="text-base font-semibold text-amber-600 dark:text-amber-400">Novo Personal Record!</p>
@@ -329,9 +328,6 @@ export function WodResultDrawer({ wod, boxId, classId, open, onClose, onSaved }:
                 </motion.div>
               )}
             </AnimatePresence>
-
-            {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto px-6 pb-10">
 
               {/* ── TAB: RESULTADO ── */}
               {tab === "resultado" && (
@@ -590,13 +586,6 @@ export function WodResultDrawer({ wod, boxId, classId, open, onClose, onSaved }:
                     />
                   </div>
 
-                  {error && <p className="text-sm text-error">{error}</p>}
-
-                  <PrimaryButton onClick={handleSubmit} loading={pending}>
-                    {updating ? "Atualizar resultado" : "Guardar resultado"}
-                  </PrimaryButton>
-                  <PrimaryButton variant="secondary" onClick={onClose} disabled={pending}>Cancelar</PrimaryButton>
-
                   </> /* fim showForm */}
                 </div>
               )}
@@ -655,11 +644,6 @@ export function WodResultDrawer({ wod, boxId, classId, open, onClose, onSaved }:
                   )}
                 </div>
               )}
-
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    </DrawerShell>
   );
 }

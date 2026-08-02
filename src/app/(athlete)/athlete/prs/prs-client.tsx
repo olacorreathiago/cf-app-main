@@ -9,7 +9,7 @@ import { pt } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { getBenchmarkHistory } from "@/lib/athlete/prs-actions";
 import { recordManualBenchmarkResult } from "@/lib/athlete/manual-result-actions";
-import { FieldInput, PrimaryButton } from "@/components/shared";
+import { FieldInput, PrimaryButton, ClosedBoxBadge } from "@/components/shared";
 import type { BenchmarkWithPr, ResultHistoryEntry } from "@/lib/athlete/prs-actions";
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -398,6 +398,11 @@ function HistoryDrawer({ benchmark, onClose }: { benchmark: BenchmarkWithPr; onC
                   {entry.box_name && (
                     <p className="text-[11px] text-text-tertiary mt-0.5">{entry.box_name}</p>
                   )}
+                  {entry.box_closed && (
+                    <div className="mt-1 flex justify-end">
+                      <ClosedBoxBadge closureMessage={entry.box_closure_message} />
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -505,6 +510,7 @@ export function PrsClient({ benchmarks }: Props) {
   const [catFilter, setCatFilter]   = useState<string | null>(null);
   const [prFilter, setPrFilter]     = useState<"all" | "achieved" | "todo">("all");
   const [selectedBenchmark, setSelectedBenchmark] = useState<BenchmarkWithPr | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   const filtered = useMemo(() => {
     return benchmarks.filter((b) => {
@@ -522,6 +528,7 @@ export function PrsClient({ benchmarks }: Props) {
 
   const achieved = benchmarks.filter((b) => b.pr_rx || b.pr_scaled);
   const hasActiveFilters = typeFilter || catFilter || search || prFilter !== "all";
+  const hasActiveChipFilters = Boolean(typeFilter || catFilter || (prFilter !== "all"));
 
   function clearFilters() {
     setTypeFilter(null);
@@ -564,76 +571,109 @@ export function PrsClient({ benchmarks }: Props) {
         })}
       </div>
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <svg
-          width="14" height="14" viewBox="0 0 14 14" fill="none"
-          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
-        >
-          <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.3" />
-          <path d="M10 10l2.5 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-        </svg>
-        <input
-          type="text"
-          placeholder="Pesquisar benchmark…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+      {/* Search + filter toggle */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="relative flex-1">
+          <svg
+            width="14" height="14" viewBox="0 0 14 14" fill="none"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
+          >
+            <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.3" />
+            <path d="M10 10l2.5 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Pesquisar benchmark…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={cn(
+              "h-10 w-full rounded-xl border border-border bg-bg-input pl-9 pr-4",
+              "text-sm text-text-primary placeholder:text-text-tertiary",
+              "focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50 transition-colors"
+            )}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowFilters((v) => !v)}
+          aria-label="Filtrar"
+          aria-pressed={showFilters}
           className={cn(
-            "h-10 w-full rounded-xl border border-border bg-bg-input pl-9 pr-4",
-            "text-sm text-text-primary placeholder:text-text-tertiary",
-            "focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50 transition-colors"
+            "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors",
+            showFilters
+              ? "border-accent/40 bg-accent/10 text-accent"
+              : "border-border bg-bg-input text-text-tertiary hover:text-text-secondary"
           )}
-        />
+        >
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+          {hasActiveChipFilters && (
+            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-[#F0B417] ring-2 ring-bg-base" />
+          )}
+        </button>
       </div>
 
       {/* Filter chips */}
-      <div className="flex flex-wrap gap-2 mb-5">
-        {/* Type chips */}
-        {WOD_TYPES.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTypeFilter(typeFilter === t ? null : t)}
-            className={cn(
-              "rounded-full border px-3 py-1 text-xs font-semibold transition-all",
-              typeFilter === t
-                ? "border-accent bg-accent text-accent-fg shadow-sm"
-                : "border-border bg-bg-input text-text-tertiary hover:border-accent/40 hover:text-text-secondary"
-            )}
+      <AnimatePresence initial={false}>
+        {showFilters && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden"
           >
-            {t}
-          </button>
-        ))}
+            <div className="flex flex-wrap gap-2 mb-5">
+              {/* Type chips */}
+              {WOD_TYPES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTypeFilter(typeFilter === t ? null : t)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-semibold transition-all",
+                    typeFilter === t
+                      ? "border-accent bg-accent text-accent-fg shadow-sm"
+                      : "border-border bg-bg-input text-text-tertiary hover:border-accent/40 hover:text-text-secondary"
+                  )}
+                >
+                  {t}
+                </button>
+              ))}
 
-        <div className="w-px bg-border self-stretch mx-1" />
+              <div className="w-px bg-border self-stretch mx-1" />
 
-        {/* Category chips */}
-        {WOD_CATEGORIES.map((c) => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => setCatFilter(catFilter === c ? null : c)}
-            className={cn(
-              "rounded-full border px-3 py-1 text-xs font-semibold transition-all",
-              catFilter === c
-                ? "border-accent bg-accent text-accent-fg shadow-sm"
-                : "border-border bg-bg-input text-text-tertiary hover:border-accent/40 hover:text-text-secondary"
-            )}
-          >
-            {CATEGORY_LABEL[c]}
-          </button>
-        ))}
+              {/* Category chips */}
+              {WOD_CATEGORIES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCatFilter(catFilter === c ? null : c)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-semibold transition-all",
+                    catFilter === c
+                      ? "border-accent bg-accent text-accent-fg shadow-sm"
+                      : "border-border bg-bg-input text-text-tertiary hover:border-accent/40 hover:text-text-secondary"
+                  )}
+                >
+                  {CATEGORY_LABEL[c]}
+                </button>
+              ))}
 
-        {hasActiveFilters && (
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="rounded-full border border-border bg-bg-input px-3 py-1 text-xs text-text-tertiary hover:text-red-500 hover:border-red-200 transition-colors"
-          >
-            Limpar filtros
-          </button>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="rounded-full border border-border bg-bg-input px-3 py-1 text-xs text-text-tertiary hover:text-red-500 hover:border-red-200 transition-colors"
+                >
+                  Limpar filtros
+                </button>
+              )}
+            </div>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
 
       {/* List */}
       {filtered.length === 0 ? (

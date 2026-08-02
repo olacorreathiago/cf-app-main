@@ -3,12 +3,11 @@
 import { useEffect, useState, useTransition } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { wodSchema, WOD_TYPES, WOD_CATEGORIES, DEFAULT_SCORE_TYPE, SCORE_TYPES, type WodInput, type WodCategory, type Movement, type ScoreType } from "@/schemas/wod";
 import { createWod, updateWod, publishWod } from "@/lib/box/wod-actions";
-import { PrimaryButton, FieldInput } from "@/components/shared";
+import { PrimaryButton, FieldInput, DrawerShell } from "@/components/shared";
 import type { Wod, BenchmarkWod } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -193,15 +192,6 @@ export function WodDrawer({ open, onClose, boxId, wod, benchmarks }: Props) {
     }
   }, [open, isEditing, wod, reset]);
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
   function handleSelectBenchmark(b: BenchmarkWod) {
     reset({
       title:               b.name,
@@ -253,79 +243,68 @@ export function WodDrawer({ open, onClose, boxId, wod, benchmarks }: Props) {
     : null;
 
   return (
-    <AnimatePresence>
-      {open && (
+    <DrawerShell
+      open={open}
+      onClose={onClose}
+      widthClassName="lg:w-[480px]"
+      header={
         <>
-          <motion.div
-            key="backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-            onClick={onClose}
-          />
-
-          <motion.div
-            key="drawer"
-            initial={{ y: "100%", opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: "100%", opacity: 0 }}
-            transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className={cn(
-              "fixed bottom-0 left-0 right-0 z-50",
-              "rounded-t-3xl border-t border-border bg-bg-base px-6 pb-10 pt-5",
-              "lg:bottom-0 lg:left-auto lg:right-0 lg:top-0 lg:w-[480px]",
-              "lg:rounded-none lg:rounded-l-3xl lg:border-l lg:border-t-0 lg:border-border",
-              "lg:pb-10 lg:pt-8 lg:overflow-y-auto"
-            )}
-          >
-            {/* Mobile drag handle */}
-            <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-border lg:hidden" />
-
-            {/* Header */}
-            <div className="mb-6 flex items-start justify-between">
-              <div>
-                {step === "form" && !isEditing && (
-                  <button
-                    type="button"
-                    onClick={() => setStep("origin")}
-                    className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary mb-2 transition-colors"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path d="M8 2L4 6l4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    Voltar
-                  </button>
-                )}
-                <p className="label-caps text-text-tertiary mb-1">
-                  {isEditing ? "Editar WOD" : step === "origin" ? "Novo WOD" : "Configurar WOD"}
-                </p>
-                <h2 className="font-display text-2xl leading-tight text-text-primary">
-                  {isEditing
-                    ? wod?.title
-                    : step === "origin"
-                    ? "De onde vem este WOD?"
-                    : benchmarkName ?? "WOD original"}
-                </h2>
-                {step === "form" && benchmarkName && (
-                  <p className="mt-1 text-xs text-text-tertiary">
-                    Benchmark pré-preenchido · podes editar à vontade
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Fechar"
-                className="ml-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-input text-text-tertiary hover:text-text-primary transition-colors"
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
-
+          {step === "form" && !isEditing && (
+            <button
+              type="button"
+              onClick={() => setStep("origin")}
+              className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary mb-2 transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M8 2L4 6l4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Voltar
+            </button>
+          )}
+          <p className="label-caps text-text-tertiary mb-1">
+            {isEditing ? "Editar WOD" : step === "origin" ? "Novo WOD" : "Configurar WOD"}
+          </p>
+          <h2 className="font-display text-2xl leading-tight text-text-primary">
+            {isEditing
+              ? wod?.title
+              : step === "origin"
+              ? "De onde vem este WOD?"
+              : benchmarkName ?? "WOD original"}
+          </h2>
+          {step === "form" && benchmarkName && (
+            <p className="mt-1 text-xs text-text-tertiary">
+              Benchmark pré-preenchido · podes editar à vontade
+            </p>
+          )}
+        </>
+      }
+      footer={
+        step === "form" ? (
+          <>
+            <PrimaryButton
+              type="button"
+              loading={pending}
+              onClick={handleSubmit((data) => submitForm(data, true))}
+            >
+              {isEditing && wod?.published_at
+                ? "Guardar alterações"
+                : "Publicar WOD"}
+            </PrimaryButton>
+            <PrimaryButton
+              type="button"
+              variant="secondary"
+              loading={pending}
+              onClick={handleSubmit((data) => submitForm(data, false))}
+            >
+              Guardar como rascunho
+            </PrimaryButton>
+            <PrimaryButton type="button" variant="secondary" onClick={onClose}>
+              Cancelar
+            </PrimaryButton>
+          </>
+        ) : undefined
+      }
+    >
             {/* ── STEP: ORIGIN ── */}
             {step === "origin" && (
               <div className="space-y-3">
@@ -637,35 +616,8 @@ export function WodDrawer({ open, onClose, boxId, wod, benchmarks }: Props) {
                     Usado para filtrar e atribuir na gestão de aulas
                   </p>
                 </div>
-
-                {/* Actions */}
-                <div className="space-y-2 pt-2">
-                  <PrimaryButton
-                    type="button"
-                    loading={pending}
-                    onClick={handleSubmit((data) => submitForm(data, true))}
-                  >
-                    {isEditing && wod?.published_at
-                      ? "Guardar alterações"
-                      : "Publicar WOD"}
-                  </PrimaryButton>
-                  <PrimaryButton
-                    type="button"
-                    variant="secondary"
-                    loading={pending}
-                    onClick={handleSubmit((data) => submitForm(data, false))}
-                  >
-                    Guardar como rascunho
-                  </PrimaryButton>
-                  <PrimaryButton type="button" variant="secondary" onClick={onClose}>
-                    Cancelar
-                  </PrimaryButton>
-                </div>
               </form>
             )}
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    </DrawerShell>
   );
 }

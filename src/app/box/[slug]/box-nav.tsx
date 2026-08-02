@@ -28,6 +28,30 @@ interface NavSection {
   items: NavItem[];
 }
 
+// A closed box keeps only Faturação reachable — history has to stay
+// consultable, everything else (rosters, scheduling, WODs...) stops making
+// sense once the box no longer operates.
+function closedNavSections(slug: string): NavSection[] {
+  return [
+    {
+      label: "Financeiro",
+      items: [
+        {
+          label: "Faturação",
+          href: `/box/${slug}/billing`,
+          roles: ["owner", "partner"],
+          icon: (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M3 2.5h10a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1v-9a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.35" />
+              <path d="M5 6.5h6M5 9.5h4" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+            </svg>
+          ),
+        },
+      ],
+    },
+  ];
+}
+
 function navSections(slug: string): NavSection[] {
   return [
     {
@@ -159,11 +183,12 @@ function navSections(slug: string): NavSection[] {
 interface BoxSidebarProps {
   slug: string;
   role: string;
+  boxClosed?: boolean;
 }
 
-export function BoxSidebar({ slug, role }: BoxSidebarProps) {
+export function BoxSidebar({ slug, role, boxClosed }: BoxSidebarProps) {
   const pathname = usePathname();
-  const sections = navSections(slug);
+  const sections = boxClosed ? closedNavSections(slug) : navSections(slug);
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto px-3 py-3">
@@ -445,12 +470,18 @@ export function BoxSwitchChip({ current, managedBoxes }: { current: StaffBox; ma
   );
 }
 
-export function BoxNav({ slug, role, managedBoxes }: { slug: string; role: string; managedBoxes: StaffBox[] }) {
+export function BoxNav({ slug, role, managedBoxes, boxClosed }: { slug: string; role: string; managedBoxes: StaffBox[]; boxClosed?: boolean }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const tabs = boxTabs(slug).filter((i) => i.roles.includes(role));
-  const allMenuItems = boxMenuItems(slug).filter((i) => i.roles.includes(role));
+  const billingTab: NavItem = {
+    label: "Faturação", href: `/box/${slug}/billing`, roles: ["owner", "partner"], icon: FaturacaoIcon,
+  };
+
+  const tabs = boxClosed
+    ? [billingTab].filter((i) => i.roles.includes(role))
+    : boxTabs(slug).filter((i) => i.roles.includes(role));
+  const allMenuItems = boxClosed ? [] : boxMenuItems(slug).filter((i) => i.roles.includes(role));
   const menuItems = allMenuItems.filter((i) => !i.href.includes("/plans") && !i.href.includes("/billing"));
   const financeItems = allMenuItems.filter((i) => i.href.includes("/plans") || i.href.includes("/billing"));
   const canSettings = ["owner", "partner"].includes(role);
@@ -496,6 +527,8 @@ export function BoxNav({ slug, role, managedBoxes }: { slug: string; role: strin
         <BoxSwitchList managedBoxes={managedBoxes} currentSlug={slug} onClose={() => setMenuOpen(false)} />
 
         {/* Overflow nav */}
+        {menuItems.length > 0 && (
+          <>
         <p className="mb-1 mt-5 px-1 text-[10px] font-semibold uppercase tracking-widest text-text-tertiary/60">Operações</p>
         <nav className="space-y-1">
           {menuItems.map((item) => {
@@ -516,6 +549,8 @@ export function BoxNav({ slug, role, managedBoxes }: { slug: string; role: strin
             );
           })}
         </nav>
+          </>
+        )}
 
         {/* Financeiro */}
         {financeItems.length > 0 && (

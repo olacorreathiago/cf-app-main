@@ -4,10 +4,9 @@ import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
 import { classTemplateSchema, type ClassTemplateInput } from "@/schemas/class-template";
 import { createTemplatesForDays, updateTemplate } from "@/lib/box/schedule-actions";
-import { PrimaryButton, FieldInput } from "@/components/shared";
+import { PrimaryButton, FieldInput, DrawerShell } from "@/components/shared";
 import { cn } from "@/lib/utils";
 import type { ClassTemplate } from "@/types";
 
@@ -79,15 +78,6 @@ export function TemplateDrawer({ open, onClose, boxId, modalities, template }: P
     }
   }, [open, template, reset]);
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
   function toggleDay(day: number) {
     if (isEditing) {
       // Single select when editing
@@ -138,66 +128,42 @@ export function TemplateDrawer({ open, onClose, boxId, modalities, template }: P
   const hasModalities = modalities.length > 0;
 
   return (
-    <AnimatePresence>
-      {open && (
+    <DrawerShell
+      open={open}
+      onClose={onClose}
+      header={
         <>
-          {/* Backdrop */}
-          <motion.div
-            key="backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-            onClick={onClose}
-          />
-
-          {/* Drawer */}
-          <motion.div
-            key="drawer"
-            initial={{ y: "100%", opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: "100%", opacity: 0 }}
-            transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className={cn(
-              "fixed bottom-0 left-0 right-0 z-50",
-              "rounded-t-3xl border-t border-border bg-bg-base px-6 pb-10 pt-5",
-              "lg:bottom-0 lg:left-auto lg:right-0 lg:top-0 lg:w-[440px]",
-              "lg:rounded-none lg:rounded-l-3xl lg:border-l lg:border-t-0 lg:border-border",
-              "lg:pb-10 lg:pt-8 lg:overflow-y-auto"
-            )}
-          >
-            {/* Mobile drag handle */}
-            <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-border lg:hidden" />
-
-            {/* Header */}
-            <div className="mb-6 flex items-start justify-between">
-              <div>
-                <p className="label-caps text-text-tertiary mb-1">
-                  {isEditing ? "Editar template" : "Novo template"}
-                </p>
-                <h2 className="font-display text-2xl leading-tight text-text-primary">
-                  {isEditing ? (template?.name ?? "Template") : "Criar aula recorrente"}
-                </h2>
-                <p className="mt-1 text-sm text-text-secondary">
-                  {isEditing
-                    ? "Altera as definições deste slot semanal."
-                    : "Podes seleccionar vários dias de uma vez."}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Fechar"
-                className="ml-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-input text-text-tertiary transition-colors hover:text-text-primary"
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          <p className="label-caps text-text-tertiary mb-1">
+            {isEditing ? "Editar template" : "Novo template"}
+          </p>
+          <h2 className="font-display text-2xl leading-tight text-text-primary">
+            {isEditing ? (template?.name ?? "Template") : "Criar aula recorrente"}
+          </h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            {isEditing
+              ? "Altera as definições deste slot semanal."
+              : "Podes seleccionar vários dias de uma vez."}
+          </p>
+        </>
+      }
+      footer={
+        <>
+          <PrimaryButton type="submit" form="template-form" loading={pending}>
+            {pending
+              ? "A guardar…"
+              : isEditing
+              ? "Guardar alterações"
+              : selectedDays.length > 1
+              ? `Criar ${selectedDays.length} templates`
+              : "Criar template"}
+          </PrimaryButton>
+          <PrimaryButton type="button" variant="secondary" onClick={onClose}>
+            Cancelar
+          </PrimaryButton>
+        </>
+      }
+    >
+            <form id="template-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               {/* Modalidade */}
               <div className="space-y-1.5">
                 <p className="text-sm font-medium text-text-secondary">Modalidade</p>
@@ -358,26 +324,7 @@ export function TemplateDrawer({ open, onClose, boxId, modalities, template }: P
               {/* Hidden fields */}
               {hasModalities && <input type="hidden" {...register("name")} />}
               <input type="hidden" {...register("weekday", { valueAsNumber: true })} />
-
-              {/* Actions */}
-              <div className="space-y-2 pt-2">
-                <PrimaryButton type="submit" loading={pending}>
-                  {pending
-                    ? "A guardar…"
-                    : isEditing
-                    ? "Guardar alterações"
-                    : selectedDays.length > 1
-                    ? `Criar ${selectedDays.length} templates`
-                    : "Criar template"}
-                </PrimaryButton>
-                <PrimaryButton type="button" variant="secondary" onClick={onClose}>
-                  Cancelar
-                </PrimaryButton>
-              </div>
             </form>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    </DrawerShell>
   );
 }

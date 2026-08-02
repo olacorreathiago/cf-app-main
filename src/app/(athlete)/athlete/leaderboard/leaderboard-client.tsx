@@ -46,14 +46,30 @@ function RankBadge({ rank }: { rank: number }) {
   return <span className="w-6 text-center text-xs font-semibold text-text-tertiary">{rank}</span>;
 }
 
+function LateBadge() {
+  return (
+    <span
+      title="Resultado registado num dia posterior ao da aula"
+      aria-label="Resultado tardio"
+      className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#F0B417]/15 text-[#F0B417]"
+    >
+      <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+        <circle cx="5" cy="5" r="4.25" stroke="currentColor" strokeWidth="1.1" />
+        <path d="M5 2.7v2.6l1.6 1" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
+  );
+}
+
 function EntryRow({ entry }: { entry: LeaderboardEntry }) {
   return (
     <div className={cn("flex items-center gap-3 px-4 py-3", entry.is_me && "bg-accent/5")}>
       <RankBadge rank={entry.rank} />
       <Avatar name={entry.display_name} url={entry.avatar_url} isMe={entry.is_me} />
-      <p className={cn("flex-1 text-sm", entry.is_me ? "font-semibold text-text-primary" : "text-text-secondary")}>
+      <p className={cn("flex-1 flex items-center gap-1.5 text-sm", entry.is_me ? "font-semibold text-text-primary" : "text-text-secondary")}>
         {entry.display_name}
-        {entry.is_me && <span className="ml-1.5 text-[10px] text-accent font-normal">Tu</span>}
+        {entry.is_me && <span className="text-[10px] text-accent font-normal">Tu</span>}
+        {entry.logged_late && <LateBadge />}
       </p>
       <p className="text-sm font-semibold text-text-primary">{entry.score_display.split(" · ")[0]}</p>
     </div>

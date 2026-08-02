@@ -18,6 +18,7 @@ async function assertManager(boxId: string) {
     .select("role")
     .eq("user_id", user.id)
     .eq("box_id", boxId)
+    .eq("status", "active")
     .in("role", ["owner", "partner"])
     .maybeSingle();
 
@@ -173,6 +174,19 @@ export async function deletePlan(planId: string, boxId: string, slug: string) {
     .delete()
     .eq("id", planId)
     .eq("box_id", boxId);
+
+  if (error) return { error: error.message };
+  revalidatePath(`/box/${slug}/plans`);
+  return {};
+}
+
+export async function setDefaultPlan(boxId: string, planId: string | null, slug: string) {
+  await assertManager(boxId);
+
+  const { error } = await supabaseAdmin
+    .from("boxes")
+    .update({ default_plan_id: planId })
+    .eq("id", boxId);
 
   if (error) return { error: error.message };
   revalidatePath(`/box/${slug}/plans`);

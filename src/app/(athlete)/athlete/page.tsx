@@ -6,6 +6,7 @@ import { ClassCard } from "@/components/athlete/class-card";
 import { WodCard } from "@/components/athlete/wod-card";
 import { FeedPreview } from "@/components/athlete/feed-preview";
 import { getLatestBoxPosts } from "@/lib/athlete/feed-actions";
+import { APP_CONFIG } from "@/lib/config";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 import Link from "next/link";
@@ -22,7 +23,7 @@ function buildGreeting(fullName: string | null, nickname: string | null): string
 
 export default async function AthleteDashboardPage() {
   const {
-    profile, activeBox, todayClasses, todayWods,
+    profile, activeBox, closedBox, todayClasses, todayWods,
     upcomingClasses, cutoffHours, advanceDays, maxWaitlist,
     statsWodsThisMonth, myDropIns,
   } = await getAthleteDashboardData();
@@ -96,8 +97,49 @@ export default async function AthleteDashboardPage() {
         </section>
       )}
 
+      {/* Box encerrada — toma prioridade sobre o empty state genérico */}
+      {!activeBox && closedBox && (
+        <div className="rounded-2xl border border-error/30 bg-error/5 p-10 text-center space-y-3">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-error/10 text-error">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+              <circle cx="11" cy="11" r="9" stroke="currentColor" strokeWidth="1.6" />
+              <path d="M11 6.5v5M11 15v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-text-primary">{closedBox.name} encerrou</p>
+            <p className="text-xs text-text-tertiary mt-1 max-w-xs mx-auto">
+              {closedBox.closureMessage ?? "Esta box já não está ativa."}
+            </p>
+          </div>
+          {closedBox.isOwner && (
+            <div className="pt-1">
+              {closedBox.withinReopenWindow ? (
+                <Link
+                  href={`/box/${closedBox.slug}/settings`}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent hover:underline underline-offset-2"
+                >
+                  Gerir e reabrir →
+                </Link>
+              ) : (
+                APP_CONFIG.supportWhatsApp && (
+                  <a
+                    href={`https://wa.me/${APP_CONFIG.supportWhatsApp.replace(/\D/g, "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent hover:underline underline-offset-2"
+                  >
+                    Contactar suporte →
+                  </a>
+                )
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* No box */}
-      {!activeBox && (
+      {!activeBox && !closedBox && (
         <div className="rounded-2xl border border-dashed border-border p-10 text-center space-y-3">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-bg-card border border-border">
             <svg width="22" height="22" viewBox="0 0 22 22" fill="none" className="text-text-tertiary">

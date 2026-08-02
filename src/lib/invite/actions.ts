@@ -6,6 +6,27 @@ import { redirect } from "next/navigation";
 import { APP_CONFIG } from "@/lib/config";
 import { Resend } from "resend";
 
+// Preserves an existing plan on reactivation; only new/plan-less memberships
+// fall back to the box's default plan. Without some plan, bookClass() skips
+// the classes_per_week check entirely, so an unassigned member can book
+// unlimited classes with nothing ever billed.
+async function resolveJoinPlanId(
+  userId: string,
+  boxId: string,
+  role: string,
+  defaultPlanId: string | null
+): Promise<string | null> {
+  const { data: existing } = await supabaseAdmin
+    .from("memberships")
+    .select("plan_id")
+    .eq("user_id", userId)
+    .eq("box_id", boxId)
+    .maybeSingle();
+  if (existing) return existing.plan_id;
+  // Only athletes get the default plan fallback — staff roles aren't billed this way.
+  return role === "athlete" ? defaultPlanId : null;
+}
+
 export async function joinBoxByToken(joinToken: string): Promise<void> {
   const supabase = await supabaseServer();
 
@@ -14,17 +35,20 @@ export async function joinBoxByToken(joinToken: string): Promise<void> {
 
   const { data: box, error: boxError } = await supabase
     .from("boxes")
-    .select("id, approval_status")
+    .select("id, approval_status, deleted_at, default_plan_id")
     .eq("join_token", joinToken)
     .single();
 
   if (boxError || !box) throw new Error("Link inválido.");
+  if (box.deleted_at) throw new Error("Esta box encerrou.");
   if (box.approval_status !== "approved") throw new Error("Esta box ainda não está ativa.");
+
+  const planId = await resolveJoinPlanId(user.id, box.id, "athlete", box.default_plan_id);
 
   const { error: memberError } = await supabaseAdmin
     .from("memberships")
     .upsert(
-      { user_id: user.id, box_id: box.id, role: "athlete", status: "active" },
+      { user_id: user.id, box_id: box.id, role: "athlete", status: "active", plan_id: planId },
       { onConflict: "user_id,box_id" }
     );
 
@@ -45,11 +69,12 @@ export async function createEmailInvite(data: {
   const email = data.email.trim().toLowerCase();
 
   const [{ data: box }, { data: inviterProfile }] = await Promise.all([
-    supabase.from("boxes").select("name, join_token").eq("id", data.boxId).single(),
+    supabase.from("boxes").select("name, join_token, deleted_at, default_plan_id").eq("id", data.boxId).single(),
     supabase.from("profiles").select("full_name, nickname").eq("id", user.id).single(),
   ]);
 
   if (!box) throw new Error("Box não encontrada.");
+  if (box.deleted_at) throw new Error("Esta box encerrou.");
 
   const inviterName = inviterProfile?.nickname ?? inviterProfile?.full_name ?? "O teu coach";
 
@@ -64,7 +89,7 @@ export async function createEmailInvite(data: {
     // Check if already a member (active or suspended)
     const { data: existingMembership } = await supabaseAdmin
       .from("memberships")
-      .select("id, status")
+      .select("id, status, plan_id")
       .eq("user_id", existingProfile.id)
       .eq("box_id", data.boxId)
       .maybeSingle();
@@ -81,7 +106,13 @@ export async function createEmailInvite(data: {
     const { error: memberError } = await supabaseAdmin
       .from("memberships")
       .upsert(
-        { user_id: existingProfile.id, box_id: data.boxId, role: "athlete", status: "active" },
+        {
+          user_id: existingProfile.id,
+          box_id: data.boxId,
+          role: "athlete",
+          status: "active",
+          plan_id: existingMembership?.plan_id ?? box.default_plan_id,
+        },
         { onConflict: "user_id,box_id" }
       );
 
@@ -174,10 +205,15 @@ export async function acceptInvite(token: string): Promise<void> {
   if (invite.status !== "pending") throw new Error("Este convite já foi utilizado.");
   if (new Date(invite.expires_at) < new Date()) throw new Error("Este convite expirou.");
 
+  const { data: box } = await supabase.from("boxes").select("deleted_at, default_plan_id").eq("id", invite.box_id).single();
+  if (box?.deleted_at) throw new Error("Esta box encerrou.");
+
+  const planId = await resolveJoinPlanId(user.id, invite.box_id, invite.role, box?.default_plan_id ?? null);
+
   const { error: memberError } = await supabaseAdmin
     .from("memberships")
     .upsert(
-      { user_id: user.id, box_id: invite.box_id, role: invite.role, status: "active" },
+      { user_id: user.id, box_id: invite.box_id, role: invite.role, status: "active", plan_id: planId },
       { onConflict: "user_id,box_id" }
     );
 

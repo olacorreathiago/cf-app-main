@@ -95,6 +95,18 @@ export function BillingClient({ boxId, slug, initialYear, initialMonth, initialD
     return (m as { id: string }).id;
   }
 
+  function memberStartDate(m: unknown): string | null {
+    const { start_date, created_at } = m as { start_date: string | null; created_at: string };
+    return start_date ?? created_at?.slice(0, 10) ?? null;
+  }
+
+  /** Excludes members whose entry (start_date, falling back to created_at) is after the viewed period — they weren't members yet. */
+  function joinedAfterPeriod(m: unknown): boolean {
+    const start = memberStartDate(m);
+    if (!start) return false;
+    return start >= periodEnd(year, month);
+  }
+
   function getMemberPayment(userId: string): Payment | undefined {
     return data.payments.find((p) => p.user_id === userId);
   }
@@ -159,10 +171,12 @@ export function BillingClient({ boxId, slug, initialYear, initialMonth, initialD
     });
   }
 
+  const visibleMembers = data.members.filter((m) => !joinedAfterPeriod(m));
+
   const totalReceived = data.payments
     .filter((p) => p.status === "paid")
     .reduce((sum, p) => sum + p.amount, 0);
-  const totalPending = data.members
+  const totalPending = visibleMembers
     .filter((m) => getMemberStatus(memberUserId(m)) !== "paid")
     .reduce((sum: number, m) => sum + (memberPlan(m)?.price ?? 0), 0);
   const dropInPaid = data.dropInPayments.filter((p) => (p as Payment).status === "paid");
@@ -213,7 +227,7 @@ export function BillingClient({ boxId, slug, initialYear, initialMonth, initialD
       {/* Members billing table */}
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-widest text-text-tertiary/60 mb-3 px-1">
-          Mensalidades · {data.members.length} membro{data.members.length !== 1 ? "s" : ""} com plano
+          Mensalidades · {visibleMembers.length} membro{visibleMembers.length !== 1 ? "s" : ""} com plano
         </p>
 
         {loading ? (
@@ -230,13 +244,13 @@ export function BillingClient({ boxId, slug, initialYear, initialMonth, initialD
               </div>
             ))}
           </div>
-        ) : data.members.length === 0 ? (
+        ) : visibleMembers.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-bg-card px-6 py-12 text-center">
             <p className="text-sm text-text-tertiary">Sem membros com plano ativo neste mês.</p>
           </div>
         ) : (
           <div className="rounded-2xl border border-border bg-bg-card divide-y divide-border overflow-hidden">
-            {data.members.map((member) => {
+            {visibleMembers.map((member) => {
               const profile = memberProfile(member);
               const plan = memberPlan(member);
               const uid = memberUserId(member);

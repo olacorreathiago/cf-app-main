@@ -13,6 +13,8 @@ export interface AthleteBox {
   logo_url: string | null;
   role: string;
   approval_status: string | null;
+  /** Set only for an owner's closed box, still inside the 30-day reopen window. */
+  closed?: boolean;
 }
 
 export interface AthleteDashboardClass {
@@ -79,9 +81,19 @@ export interface AthleteDropIn {
   payment_instructions: string | null;
 }
 
+export interface AthleteClosedBoxInfo {
+  name: string;
+  slug: string;
+  closureMessage: string | null;
+  isOwner: boolean;
+  withinReopenWindow: boolean;
+}
+
 export interface AthleteDashboardData {
   profile: AthleteProfileData;
   activeBox: AthleteBox | null;
+  /** Most recently closed box the athlete belonged to — only set when there's no active box to show instead. */
+  closedBox: AthleteClosedBoxInfo | null;
   allBoxes: AthleteBox[];
   todayClasses: AthleteDashboardClass[];
   todayWods: AthleteDashboardWod[];
@@ -210,7 +222,34 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
   }
 
   if (!activeBox) {
-    return { profile, activeBox: null, allBoxes, todayClasses: [], todayWods: [], upcomingClasses: [], recentPrs: [], myDropIns, cutoffHours: 1, advanceDays: 7, maxWaitlist: 5, statsWodsThisMonth: 0, statsWodsPrevMonth: 0, statsTotalPrs: 0 };
+    // No active box — check whether the athlete's most recent box closed,
+    // so the empty state can explain that instead of just "no box".
+    const { data: allMemberships } = await supabase
+      .from("memberships")
+      .select("role, boxes(name, slug, deleted_at, closure_message)")
+      .eq("user_id", user.id);
+
+    const closedCandidates = (allMemberships ?? [])
+      .map((m) => ({
+        role: m.role,
+        box: m.boxes as unknown as { name: string; slug: string; deleted_at: string | null; closure_message: string | null } | null,
+      }))
+      .filter((m): m is { role: string; box: { name: string; slug: string; deleted_at: string; closure_message: string | null } } => !!m.box?.deleted_at)
+      .sort((a, b) => new Date(b.box.deleted_at).getTime() - new Date(a.box.deleted_at).getTime());
+
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    const closedBox: AthleteClosedBoxInfo | null = closedCandidates[0]
+      ? {
+          name: closedCandidates[0].box.name,
+          slug: closedCandidates[0].box.slug,
+          closureMessage: closedCandidates[0].box.closure_message,
+          isOwner: closedCandidates[0].role === "owner",
+          withinReopenWindow:
+            Date.now() - new Date(closedCandidates[0].box.deleted_at).getTime() <= THIRTY_DAYS_MS,
+        }
+      : null;
+
+    return { profile, activeBox: null, closedBox, allBoxes, todayClasses: [], todayWods: [], upcomingClasses: [], recentPrs: [], myDropIns, cutoffHours: 1, advanceDays: 7, maxWaitlist: 5, statsWodsThisMonth: 0, statsWodsPrevMonth: 0, statsTotalPrs: 0 };
   }
 
   // Today's scheduled classes — use local date string to avoid UTC offset shifting the day boundary
@@ -357,15 +396,23 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
     const todayIso = new Date().toISOString().slice(0, 10);
     const { data: myResults } = await supabase
       .from("wod_results")
-      .select("id, wod_id, score_display, rx")
+      .select("id, wod_id, class_id, score_display, rx")
       .eq("user_id", user.id)
       .eq("box_id", activeBox.id)
       .in("wod_id", allWodIds)
       .gte("recorded_at", `${todayIso}T00:00:00.000Z`)
       .lte("recorded_at", `${todayIso}T23:59:59.999Z`);
-    const myResultMap: Record<string, { id: string; score_display: string; rx: boolean; is_pr: boolean }> = {};
+    // Index by class_id (each schedule slot is a distinct class sharing the same wod_id).
+    // Fall back to wod_id only for legacy results recorded before class_id was tracked.
+    const myResultByClassMap: Record<string, { id: string; score_display: string; rx: boolean; is_pr: boolean }> = {};
+    const myResultByWodMap: Record<string, { id: string; score_display: string; rx: boolean; is_pr: boolean }> = {};
     for (const r of myResults ?? []) {
-      myResultMap[r.wod_id] = { id: r.id, score_display: r.score_display ?? "", rx: r.rx, is_pr: false };
+      const entry = { id: r.id, score_display: r.score_display ?? "", rx: r.rx, is_pr: false };
+      if (r.class_id) {
+        myResultByClassMap[r.class_id] = entry;
+      } else {
+        myResultByWodMap[r.wod_id] = entry;
+      }
     }
 
     // Check which results are PRs
@@ -377,7 +424,9 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
         .in("wod_result_id", resultIds);
       const prResultIds = new Set((prRows ?? []).map((p) => p.wod_result_id));
       for (const r of myResults ?? []) {
-        if (prResultIds.has(r.id)) myResultMap[r.wod_id].is_pr = true;
+        if (!prResultIds.has(r.id)) continue;
+        const entry = r.class_id ? myResultByClassMap[r.class_id] : myResultByWodMap[r.wod_id];
+        if (entry) entry.is_pr = true;
       }
     }
 
@@ -394,7 +443,7 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
       scaling_notes: w.scaling_notes,
       result_sets: w.result_sets ?? null,
       result_reps_per_set: w.result_reps_per_set ?? null,
-      my_result: myResultMap[w.id] ?? null,
+      my_result: (wodClassMap[w.id] ? myResultByClassMap[wodClassMap[w.id]] : undefined) ?? myResultByWodMap[w.id] ?? null,
     }));
   }
 
@@ -513,6 +562,7 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
   return {
     profile,
     activeBox,
+    closedBox: null,
     allBoxes,
     todayClasses,
     todayWods,

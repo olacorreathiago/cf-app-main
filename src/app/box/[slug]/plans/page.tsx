@@ -21,7 +21,7 @@ export default async function PlansPage({ params }: Props) {
 
   const { data: box } = await supabase
     .from("boxes")
-    .select("id")
+    .select("id, default_plan_id")
     .eq("slug", slug)
     .single();
 
@@ -44,9 +44,13 @@ export default async function PlansPage({ params }: Props) {
       <div className="mb-8">
         <p className="label-caps text-text-tertiary mb-1">Financeiro</p>
         <h1 className="font-display text-3xl uppercase text-text-primary">Planos</h1>
+        <p className="mt-2 max-w-lg text-sm text-text-tertiary">
+          O plano padrão é atribuído automaticamente a quem entra na box por convite, para
+          poder marcar aulas desde já. Ajusta o plano de cada membro depois, em Membros.
+        </p>
       </div>
 
-      <PlansClient plans={plans} boxId={box.id} slug={slug} />
+      <PlansClient plans={plans} boxId={box.id} slug={slug} defaultPlanId={box.default_plan_id} />
     </div>
   );
 }

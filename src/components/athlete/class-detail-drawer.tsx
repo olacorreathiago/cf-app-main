@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import { format } from "date-fns";
 import { pt } from "date-fns/locale";
 import { getClassAttendees } from "@/lib/athlete/classes-actions";
 import type { ClassAttendee } from "@/lib/athlete/classes-actions";
 import type { AthleteDashboardClass } from "@/lib/athlete/dashboard-actions";
+import { DrawerShell } from "@/components/shared";
 
 interface Props {
   cls: AthleteDashboardClass;
@@ -58,47 +58,16 @@ export function ClassDetailDrawer({ cls, open, onClose }: Props) {
   const dateCapitalized = dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1);
 
   return (
-    <AnimatePresence>
-      {open && (
+    <DrawerShell
+      open={open}
+      onClose={onClose}
+      header={
         <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-            onClick={onClose}
-          />
-
-          {/* Drawer */}
-          <motion.div
-            initial={{ y: "100%", opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: "100%", opacity: 0 }}
-            transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl border-t border-border bg-bg-base px-6 pb-10 pt-5 lg:bottom-0 lg:left-auto lg:right-0 lg:top-0 lg:w-[440px] lg:rounded-none lg:rounded-l-3xl lg:border-l lg:border-t-0 lg:overflow-y-auto lg:pb-10 lg:pt-8"
-          >
-            {/* Handle (mobile) */}
-            <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-border lg:hidden" />
-
-            {/* Header */}
-            <div className="flex items-start justify-between gap-4 mb-6">
-              <div>
-                <p className="label-caps text-text-tertiary mb-1">Detalhes da aula</p>
-                <h2 className="font-display text-2xl text-text-primary">{cls.name}</h2>
-              </div>
-              <button
-                onClick={onClose}
-                className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-text-tertiary hover:text-text-primary transition-colors"
-                aria-label="Fechar"
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
-
+          <p className="label-caps text-text-tertiary mb-1">Detalhes da aula</p>
+          <h2 className="font-display text-2xl text-text-primary">{cls.name}</h2>
+        </>
+      }
+    >
             {/* Info rows */}
             <div className="space-y-3 mb-6">
               {/* Date */}
@@ -197,10 +166,7 @@ export function ClassDetailDrawer({ cls, open, onClose }: Props) {
                 <p className="text-sm text-text-tertiary">Ainda sem inscritos.</p>
               )}
             </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    </DrawerShell>
   );
 }
 

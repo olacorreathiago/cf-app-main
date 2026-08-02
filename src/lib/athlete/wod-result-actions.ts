@@ -18,6 +18,21 @@ export interface RecordResultResponse {
 
 const NO_CHECKIN_ERROR = "Sem check-in confirmado nesta aula — pede ao coach para marcar a tua presença.";
 
+// ── "Tardio" (late) detection ───────────────────────────────────────────────
+// The result's date is the class's starts_at (not recorded_at). A result is
+// "tardio" when it is inserted/edited on a calendar day after the class day.
+// Follows the same day-boundary convention as dashboard/leaderboard queries:
+// compare local calendar dates using the T00:00–T23:59:59.999Z window.
+
+function calendarDayIso(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function isLoggedLate(classDate: string | null): boolean {
+  if (!classDate) return false; // legacy/manual results are never late
+  return calendarDayIso(new Date()) > calendarDayIso(new Date(classDate));
+}
+
 async function hasConfirmedCheckin(
   supabase: Awaited<ReturnType<typeof supabaseServer>>,
   userId: string,
@@ -71,6 +86,13 @@ export async function recordWodResult(input: WodResultInput): Promise<RecordResu
   });
   if (!checkedIn) return { error: NO_CHECKIN_ERROR };
 
+  // Resolve class date for PR achieved_at and "tardio" detection
+  let classDate: string | null = null;
+  if (input.class_id) {
+    const { data: cls } = await supabase.from("classes").select("starts_at").eq("id", input.class_id).single();
+    classDate = cls?.starts_at ?? null;
+  }
+
   const { data: result, error: insertError } = await supabase
     .from("wod_results")
     .insert({
@@ -85,18 +107,12 @@ export async function recordWodResult(input: WodResultInput): Promise<RecordResu
       dnf:           input.dnf ?? false,
       notes:         input.notes ?? null,
       sets_data:     input.sets_data ? JSON.stringify(input.sets_data) : null,
+      logged_late:   isLoggedLate(classDate),
     })
     .select("id")
     .single();
 
   if (insertError || !result) return { error: "Erro ao guardar resultado. Tenta novamente." };
-
-  // Resolve class date for PR achieved_at
-  let classDate: string | null = null;
-  if (input.class_id) {
-    const { data: cls } = await supabase.from("classes").select("starts_at").eq("id", input.class_id).single();
-    classDate = cls?.starts_at ?? null;
-  }
 
   const { isPR } = await evaluatePR(supabase, {
     userId: user.id,
@@ -152,6 +168,12 @@ export async function updateWodResult(input: UpdateResultInput): Promise<RecordR
   });
   if (!checkedIn) return { error: NO_CHECKIN_ERROR };
 
+  let classDate: string | null = null;
+  if (input.class_id) {
+    const { data: cls } = await supabase.from("classes").select("starts_at").eq("id", input.class_id).single();
+    classDate = cls?.starts_at ?? null;
+  }
+
   const { error: updateError } = await supabase
     .from("wod_results")
     .update({
@@ -162,16 +184,13 @@ export async function updateWodResult(input: UpdateResultInput): Promise<RecordR
       dnf:           input.dnf ?? false,
       notes:         input.notes ?? null,
       sets_data:     input.sets_data ? JSON.stringify(input.sets_data) : null,
+      // Editing on a calendar day after the class makes the result "tardio";
+      // once tardio, an on-time re-edit doesn't clear the flag.
+      ...(isLoggedLate(classDate) ? { logged_late: true } : {}),
     })
     .eq("id", input.result_id);
 
   if (updateError) return { error: "Erro ao atualizar resultado. Tenta novamente." };
-
-  let classDate: string | null = null;
-  if (input.class_id) {
-    const { data: cls } = await supabase.from("classes").select("starts_at").eq("id", input.class_id).single();
-    classDate = cls?.starts_at ?? null;
-  }
 
   const { isPR } = await evaluatePR(supabase, {
     userId: user.id,

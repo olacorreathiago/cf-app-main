@@ -5,3 +5,5 @@ export { PrimaryButton } from "./primary-button";
 export { FieldInput } from "./field-input";
 export { GoogleButton } from "./google-button";
 export { ImageCropModal } from "./image-crop-modal";
+export { DrawerShell } from "./drawer-shell";
+export { ClosedBoxBadge } from "./closed-box-badge";

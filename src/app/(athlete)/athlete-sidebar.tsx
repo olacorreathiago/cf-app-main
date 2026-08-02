@@ -182,7 +182,12 @@ function BoxRow({ box, activeBox }: { box: AthleteBox; activeBox: AthleteBox | n
     <>
       <BoxAvatar box={box} />
       <span className="truncate">{box.name}</span>
-      {isStaff && (
+      {box.closed && (
+        <span className="ml-auto shrink-0 rounded-full bg-error/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-error">
+          Encerrada
+        </span>
+      )}
+      {isStaff && !box.closed && (
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="ml-auto shrink-0 text-text-tertiary">
           <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -279,6 +284,26 @@ function BoxSelectorRow({ boxes, activeBox }: { boxes: AthleteBox[]; activeBox: 
             <div className="mt-1 space-y-0.5">
               {boxes.map((box) => {
                 const isActive = box.id === current.id;
+
+                // A closed box (owner, within the 30-day window) is a
+                // management link, not something to switch athlete context
+                // into — same treatment as a staff row.
+                if (box.closed) {
+                  return (
+                    <Link
+                      key={box.id}
+                      href={`/box/${box.slug}`}
+                      className="flex w-full items-center gap-3 rounded-lg py-2 pl-4 pr-3 text-sm text-text-secondary transition-colors duration-150 hover:bg-bg-card/60 hover:text-text-primary"
+                    >
+                      <BoxAvatar box={box} size="sm" />
+                      <span className="truncate">{box.name}</span>
+                      <span className="ml-auto shrink-0 rounded-full bg-error/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-error">
+                        Encerrada
+                      </span>
+                    </Link>
+                  );
+                }
+
                 return (
                   <form key={box.id} action={switchActiveBox.bind(null, box.id, pathname)}>
                     <button

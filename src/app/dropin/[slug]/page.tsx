@@ -15,11 +15,11 @@ export default async function DropInPublicPage({ params }: Props) {
 
   const { data: box } = await supabaseAdmin
     .from("boxes")
-    .select("id, name, slug, logo_url, drop_in_enabled, drop_in_price, payment_instructions")
+    .select("id, name, slug, logo_url, drop_in_enabled, drop_in_price, payment_instructions, deleted_at")
     .eq("slug", slug)
     .single();
 
-  if (!box) notFound();
+  if (!box || box.deleted_at) notFound();
 
   const dropInEnabled = (box as unknown as { drop_in_enabled: boolean }).drop_in_enabled;
   if (!dropInEnabled) {

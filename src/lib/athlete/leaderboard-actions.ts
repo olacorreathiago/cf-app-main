@@ -13,6 +13,10 @@ export interface LeaderboardEntry {
   score_value: number;
   rx: boolean;
   is_me: boolean;
+  // "Tardio" — result was logged/edited on a calendar day after the class.
+  // Still ranks and shows here, but must be excluded once scoring/points
+  // are computed (points don't exist yet — see the TODO below).
+  logged_late: boolean;
 }
 
 export interface BenchmarkLeaderboard {
@@ -134,7 +138,7 @@ export async function getBenchmarkLeaderboard(wodId: string): Promise<BenchmarkL
   // Best result per user (latest if tied — using recorded_at)
   const { data: allResults } = await supabase
     .from("wod_results")
-    .select("id, user_id, score_value, score_display, rx, recorded_at")
+    .select("id, user_id, score_value, score_display, rx, recorded_at, logged_late")
     .eq("wod_id", wodId)
     .eq("box_id", activeBoxId)
     .eq("dnf", false)
@@ -157,7 +161,7 @@ export async function getBenchmarkLeaderboard(wodId: string): Promise<BenchmarkL
   );
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
-  type ResultRow = { id: string; user_id: string; score_value: number | null; score_display: string | null; rx: boolean; recorded_at: string };
+  type ResultRow = { id: string; user_id: string; score_value: number | null; score_display: string | null; rx: boolean; recorded_at: string; logged_late: boolean };
   // Best per user per rx flag
   const bestByUserRx: Record<string, { rx: ResultRow | null; scaled: ResultRow | null }> = {};
   for (const r of allResults ?? []) {
@@ -192,6 +196,7 @@ export async function getBenchmarkLeaderboard(wodId: string): Promise<BenchmarkL
         score_value: x.result.score_value!,
         rx: x.result.rx,
         is_me: x.uid === user.id,
+        logged_late: x.result.logged_late,
       };
     });
   }
@@ -215,12 +220,24 @@ export async function getDailyLeaderboard(date: string): Promise<DailyLeaderboar
   const from = `${date}T00:00:00.000Z`;
   const to = `${date}T23:59:59.999Z`;
 
+  // A result's "date" is the class it belongs to (classes.starts_at), not
+  // recorded_at — recorded_at only matters for manual results (no leaderboard)
+  // and for detecting "tardio" entries (logged_late, set at write time).
+  const { data: dayClasses } = await supabase
+    .from("classes")
+    .select("id")
+    .eq("box_id", activeBoxId)
+    .gte("starts_at", from)
+    .lte("starts_at", to);
+
+  const classIds = (dayClasses ?? []).map((c) => c.id);
+  if (classIds.length === 0) return { date, wods: [] };
+
   const { data: results } = await supabase
     .from("wod_results")
-    .select("id, user_id, wod_id, score_value, score_display, rx, dnf, recorded_at")
+    .select("id, user_id, wod_id, score_value, score_display, rx, dnf, recorded_at, logged_late")
     .eq("box_id", activeBoxId)
-    .gte("recorded_at", from)
-    .lte("recorded_at", to)
+    .in("class_id", classIds)
     .eq("dnf", false)
     .not("score_value", "is", null);
 
@@ -257,6 +274,9 @@ export async function getDailyLeaderboard(date: string): Promise<DailyLeaderboar
       });
 
       // Best result per user (multiple sessions same day)
+      // TODO(points): when leaderboard points/scoring are introduced, entries
+      // with logged_late === true must be excluded from the points calculation
+      // (they still display here with a "tardio" warning — see LeaderboardEntry).
       const bestByUser = new Map<string, typeof filtered[number]>();
       for (const r of filtered) {
         const current = bestByUser.get(r.user_id);
@@ -282,6 +302,7 @@ export async function getDailyLeaderboard(date: string): Promise<DailyLeaderboar
           score_value: r.score_value!,
           rx: r.rx,
           is_me: r.user_id === user.id,
+          logged_late: r.logged_late,
         };
       });
     }

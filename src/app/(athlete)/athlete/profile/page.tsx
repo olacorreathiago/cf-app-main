@@ -4,8 +4,11 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { ProfileForm } from "./profile-form";
 import { ProfileCompletion } from "./profile-completion";
 import { AvatarUpload } from "./avatar-upload";
+import { ProfileDangerZone } from "./danger-zone";
 import { signOut } from "@/app/dashboard/actions";
+import { ClosedBoxBadge } from "@/components/shared";
 import { getMyPayments } from "@/lib/payments/actions";
+import { APP_CONFIG } from "@/lib/config";
 
 export const metadata: Metadata = { title: "Perfil" };
 import { format } from "date-fns";
@@ -33,7 +36,7 @@ export default async function AthleteProfilePage() {
   const supabase = await supabaseServer();
   const { data: memberships } = await supabase
     .from("memberships")
-    .select("role, status, plan_id, created_at, boxes(name, slug), plans:plan_id(name, price, billing_interval)")
+    .select("role, status, plan_id, created_at, boxes(name, slug, deleted_at, closure_message), plans:plan_id(name, price, billing_interval)")
     .eq("user_id", profile.id)
     .order("created_at");
 
@@ -155,25 +158,44 @@ export default async function AthleteProfilePage() {
           <p className="label-caps text-text-tertiary">As minhas boxes</p>
           <div className="rounded-2xl border border-border bg-bg-card divide-y divide-border overflow-hidden">
             {memberships.map((m) => {
-              const box = m.boxes as unknown as { name: string; slug: string } | null;
+              const box = m.boxes as unknown as { name: string; slug: string; deleted_at: string | null; closure_message: string | null } | null;
               if (!box) return null;
               const isActive = m.status === "active";
+              const closedOver30Days =
+                !!box.deleted_at &&
+                Date.now() - new Date(box.deleted_at).getTime() > 30 * 24 * 60 * 60 * 1000;
               return (
-                <div key={box.slug} className="flex items-center justify-between px-5 py-3.5">
+                <div key={box.slug} className="flex items-center justify-between px-5 py-3.5 gap-3">
                   <div className="space-y-0.5">
                     <p className="text-sm font-medium text-text-primary">{box.name}</p>
                     <p className="text-xs text-text-tertiary">{ROLE_LABEL[m.role] ?? m.role}</p>
                   </div>
-                  <span
-                    className={[
-                      "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
-                      isActive
-                        ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                        : "bg-bg-input text-text-tertiary",
-                    ].join(" ")}
-                  >
-                    {STATUS_LABEL[m.status] ?? m.status}
-                  </span>
+                  {box.deleted_at ? (
+                    <div className="flex flex-col items-end gap-1">
+                      <ClosedBoxBadge closureMessage={box.closure_message} />
+                      {closedOver30Days && m.role === "owner" && APP_CONFIG.supportWhatsApp && (
+                        <a
+                          href={`https://wa.me/${APP_CONFIG.supportWhatsApp.replace(/\D/g, "")}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] font-medium text-accent hover:underline underline-offset-2"
+                        >
+                          Contactar suporte →
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <span
+                      className={[
+                        "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+                        isActive
+                          ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                          : "bg-bg-input text-text-tertiary",
+                      ].join(" ")}
+                    >
+                      {STATUS_LABEL[m.status] ?? m.status}
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -199,6 +221,8 @@ export default async function AthleteProfilePage() {
           </button>
         </form>
       </section>
+
+      <ProfileDangerZone email={profile.email} />
     </div>
   );
 }

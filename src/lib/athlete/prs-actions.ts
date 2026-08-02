@@ -37,6 +37,8 @@ export interface ResultHistoryEntry {
   recorded_at: string;
   class_date: string | null; // starts_at of the class — preferred display date
   box_name: string | null;
+  box_closed: boolean;
+  box_closure_message: string | null;
   is_pr: boolean;
   is_manual: boolean; // registered outside a class (e.g. at home)
 }
@@ -59,15 +61,19 @@ function formatPrDisplay(value: number, unit: string): string {
 async function resolveActiveBoxId(supabase: Awaited<ReturnType<typeof supabaseServer>>, userId: string) {
   const { data: memberships } = await supabase
     .from("memberships")
-    .select("box_id")
+    .select("box_id, status, boxes(deleted_at)")
     .eq("user_id", userId)
-    .eq("status", "active")
     .order("created_at");
-  const allBoxIds = (memberships ?? []).map((m) => m.box_id);
-  if (allBoxIds.length === 0) return null;
+
+  const eligible = (memberships ?? [])
+    .map((m) => ({ box_id: m.box_id, closed: !!(m.boxes as unknown as { deleted_at: string | null } | null)?.deleted_at, status: m.status }))
+    .filter((m) => m.status === "active" || m.closed);
+
+  if (eligible.length === 0) return null;
   const cookieStore = await cookies();
   const preferred = cookieStore.get("athlete_active_box")?.value;
-  return (preferred && allBoxIds.includes(preferred) ? preferred : null) ?? allBoxIds[0];
+  const found = preferred ? eligible.find((m) => m.box_id === preferred) : null;
+  return (found ?? eligible.find((m) => !m.closed) ?? eligible[0]).box_id;
 }
 
 export async function getAthletePrsData(): Promise<AthletePrsData> {
@@ -261,9 +267,11 @@ export async function getBenchmarkHistory(params: { benchmarkSlug: string } | { 
   // Box names
   const boxIds = [...new Set(results.map((r) => r.box_id).filter(Boolean) as string[])];
   const { data: boxes } = boxIds.length > 0
-    ? await supabase.from("boxes").select("id, name").in("id", boxIds)
+    ? await supabase.from("boxes").select("id, name, deleted_at, closure_message").in("id", boxIds)
     : { data: [] };
   const boxNameMap = new Map((boxes ?? []).map((b) => [b.id, b.name]));
+  const boxClosedMap = new Map((boxes ?? []).map((b) => [b.id, !!b.deleted_at]));
+  const boxClosureMessageMap = new Map((boxes ?? []).map((b) => [b.id, b.closure_message as string | null]));
 
   // Class dates — use starts_at as the display date instead of recorded_at
   const classIds = [...new Set(results.map((r) => r.class_id).filter(Boolean) as string[])];
@@ -287,6 +295,8 @@ export async function getBenchmarkHistory(params: { benchmarkSlug: string } | { 
     recorded_at: r.recorded_at,
     class_date: r.class_id ? (classDateMap.get(r.class_id) ?? null) : null,
     box_name: r.box_id ? (boxNameMap.get(r.box_id) ?? null) : null,
+    box_closed: r.box_id ? (boxClosedMap.get(r.box_id) ?? false) : false,
+    box_closure_message: r.box_id ? (boxClosureMessageMap.get(r.box_id) ?? null) : null,
     is_pr: prSet.has(r.id),
     is_manual: (r as { is_manual?: boolean }).is_manual ?? false,
   }));

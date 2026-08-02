@@ -122,20 +122,35 @@ export default async function AthleteLayout({ children }: { children: React.Reac
   const profile: AthleteProfileData = rawProfile;
   const completion = getProfileCompletion(profile);
 
-  // Fetch all active boxes
+  // Active boxes, plus — owner only — a box they just closed, while still
+  // inside the 30-day self-service reopen window. Everyone else never sees
+  // a closed box here; after 30 days it drops out for the owner too (the
+  // profile page keeps a historical record with a support-contact link).
   const { data: memberships } = await supabase
     .from("memberships")
-    .select("role, status, box_id, boxes(id, name, slug, logo_url, approval_status)")
+    .select("role, status, box_id, boxes(id, name, slug, logo_url, approval_status, deleted_at)")
     .eq("user_id", user.id)
-    .in("status", ["active", "suspended"])
+    .in("status", ["active", "suspended", "inactive"])
     .order("created_at");
 
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
   const allBoxes: AthleteBox[] = (memberships ?? [])
-    .filter((m) => m.status === "active")
-    .map((m) => {
-      const box = m.boxes as unknown as { id: string; name: string; slug: string; logo_url: string | null; approval_status: string | null } | null;
+    .map((m): AthleteBox | null => {
+      const box = m.boxes as unknown as { id: string; name: string; slug: string; logo_url: string | null; approval_status: string | null; deleted_at: string | null } | null;
       if (!box?.id) return null;
-      return { id: box.id, name: box.name, slug: box.slug, logo_url: box.logo_url, role: m.role, approval_status: box.approval_status };
+
+      if (m.status === "active") {
+        return { id: box.id, name: box.name, slug: box.slug, logo_url: box.logo_url, role: m.role, approval_status: box.approval_status };
+      }
+
+      const closedWithinWindow =
+        m.role === "owner" &&
+        !!box.deleted_at &&
+        Date.now() - new Date(box.deleted_at).getTime() <= THIRTY_DAYS_MS;
+      if (!closedWithinWindow) return null;
+
+      return { id: box.id, name: box.name, slug: box.slug, logo_url: box.logo_url, role: m.role, approval_status: box.approval_status, closed: true };
     })
     .filter((b): b is AthleteBox => b !== null);
 
@@ -143,7 +158,10 @@ export default async function AthleteLayout({ children }: { children: React.Reac
   const cookieStore = await cookies();
   const preferredBoxId = cookieStore.get("athlete_active_box")?.value;
   const activeBox =
-    (preferredBoxId ? allBoxes.find((b) => b.id === preferredBoxId) : null) ?? allBoxes[0] ?? null;
+    (preferredBoxId ? allBoxes.find((b) => b.id === preferredBoxId) : null) ??
+    allBoxes.find((b) => !b.closed) ??
+    allBoxes[0] ??
+    null;
 
   const isProfessional = profile.profile_type === "professional";
 

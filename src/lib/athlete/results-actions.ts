@@ -197,7 +197,10 @@ export async function getAthleteResultsForDay(date: string): Promise<AthleteResu
       const key = `${r.class_id}:${r.wod_id}`;
       if (!resultByClassWod.has(key)) resultByClassWod.set(key, r); // keep most recent (ordered desc)
     } else {
-      // Legacy unscoped result — use as fallback only
+      // Legacy/manual unscoped result — only usable as a fallback for THIS day.
+      // Without this guard, a manual entry (or old pre-class_id row) recorded on
+      // any date bleeds into every future session of the same wod_id/day pair.
+      if (r.recorded_at.slice(0, 10) !== date) continue;
       if (!resultByWodFallback.has(r.wod_id)) resultByWodFallback.set(r.wod_id, r);
     }
   }
@@ -222,7 +225,12 @@ export async function getAthleteResultsForDay(date: string): Promise<AthleteResu
     const classWods: ResultWod[] = wodIdsForClass.reduce<ResultWod[]>((acc, wid) => {
       const w = wodMap.get(wid);
       if (!w) return acc;
+      // Fallback (class_id-less) results are ambiguous — consume on first use so
+      // they attach to a single session, not every session sharing the wod today.
       const r = resultByClassWod.get(`${cls.id}:${wid}`) ?? resultByWodFallback.get(wid) ?? null;
+      if (!resultByClassWod.has(`${cls.id}:${wid}`) && resultByWodFallback.has(wid)) {
+        resultByWodFallback.delete(wid);
+      }
       acc.push({
         wod_id: wid,
         wod_title: w.title,

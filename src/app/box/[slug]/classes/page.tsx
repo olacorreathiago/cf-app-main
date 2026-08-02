@@ -75,7 +75,7 @@ export default async function ClassesPage({ params, searchParams }: Props) {
       .order("starts_at"),
     supabase
       .from("memberships")
-      .select("profiles(id, full_name, nickname)")
+      .select("profiles:user_id(id, full_name, nickname)")
       .eq("box_id", box.id)
       .in("role", ["owner", "partner", "manager", "coach"])
       .eq("status", "active"),

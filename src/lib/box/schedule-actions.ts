@@ -14,6 +14,7 @@ async function requireScheduleRole(boxId: string) {
     .select("role")
     .eq("user_id", user.id)
     .eq("box_id", boxId)
+    .eq("status", "active")
     .in("role", ["owner", "partner", "manager"])
     .maybeSingle();
 
