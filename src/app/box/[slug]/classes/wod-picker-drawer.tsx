@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { assignModalityWod } from "@/lib/box/classes-actions";
 import { PrimaryButton, DrawerShell } from "@/components/shared";
-import type { Wod, ClassTemplate } from "@/types";
+import { WodDrawer } from "../wods/wod-drawer";
+import type { Wod, ClassTemplate, BenchmarkWod } from "@/types";
 
 const TYPE_COLORS: Record<string, string> = {
   AMRAP:      "bg-green-100 text-green-800 border-green-200",
@@ -25,6 +27,7 @@ interface Props {
   templates: Pick<ClassTemplate, "id" | "name" | "start_time" | "duration_minutes" | "capacity">[];
   wods: Wod[];
   currentWodIds: string[];
+  benchmarks: BenchmarkWod[];
 }
 
 export function WodPickerDrawer({
@@ -36,13 +39,29 @@ export function WodPickerDrawer({
   templates,
   wods,
   currentWodIds,
+  benchmarks,
 }: Props) {
+  const router = useRouter();
+  const [creating, setCreating] = useState(false);
+  const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>(currentWodIds);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    if (open) setSelected(currentWodIds);
+    if (open) {
+      setSelected(currentWodIds);
+      setCreating(false);
+      setQuery("");
+    }
   }, [open, currentWodIds]);
+
+  // The new WOD is created while the picker is hidden; once saved we come back
+  // to the picker with it already ticked. router.refresh() brings it into `wods`.
+  function handleCreated(wodId: string) {
+    setSelected((prev) => (prev.includes(wodId) ? prev : [...prev, wodId]));
+    setCreating(false);
+    router.refresh();
+  }
 
   function toggleWod(id: string) {
     setSelected((prev) =>
@@ -68,16 +87,32 @@ export function WodPickerDrawer({
   }
 
   // WODs scheduled for this exact date go first
-  const suggested = wods.filter((w) => w.scheduled_for === date);
-  const others    = wods.filter((w) => w.scheduled_for !== date);
+  const q = query.trim().toLowerCase();
+  const matches = (w: Wod) =>
+    !q ||
+    w.title.toLowerCase().includes(q) ||
+    w.type.toLowerCase().includes(q) ||
+    (w.description ?? "").toLowerCase().includes(q);
+  const filtered  = wods.filter(matches);
+  const suggested = filtered.filter((w) => w.scheduled_for === date);
+  const others    = filtered.filter((w) => w.scheduled_for !== date);
 
   const hasChanges =
     selected.length !== currentWodIds.length ||
     selected.some((id) => !currentWodIds.includes(id));
 
   return (
+    <>
+    <WodDrawer
+      open={open && creating}
+      onClose={() => setCreating(false)}
+      boxId={boxId}
+      benchmarks={benchmarks}
+      publishOnly
+      onCreated={handleCreated}
+    />
     <DrawerShell
-      open={open}
+      open={open && !creating}
       onClose={onClose}
       header={
         <>
@@ -114,6 +149,41 @@ export function WodPickerDrawer({
         </>
       }
     >
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/50 hover:text-text-primary"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M7 2.5v9M2.5 7h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              Criar novo WOD
+            </button>
+
+            {wods.length > 0 && (
+              <div className="relative mb-4">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary"
+                >
+                  <circle cx="7" cy="7" r="4.75" stroke="currentColor" strokeWidth="1.4" />
+                  <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                </svg>
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Pesquisar WODs…"
+                  aria-label="Pesquisar WODs"
+                  className="w-full rounded-xl border border-border bg-bg-input py-2.5 pl-9 pr-3 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent/50 focus:outline-none"
+                />
+              </div>
+            )}
+
             {/* Selection summary */}
             {selected.length > 0 && (
               <div className="mb-4 flex flex-wrap gap-1.5 p-3 rounded-xl bg-bg-input border border-border">
@@ -147,9 +217,15 @@ export function WodPickerDrawer({
               <div className="rounded-xl border border-border bg-bg-card px-4 py-8 text-center mb-5">
                 <p className="text-sm text-text-secondary">Sem WODs publicados</p>
                 <p className="text-xs text-text-tertiary mt-1">
-                  Publica WODs em <span className="font-medium">WODs</span> para os poder atribuir aqui.
+                  Cria o primeiro WOD com o botão acima.
                 </p>
               </div>
+            )}
+
+            {wods.length > 0 && filtered.length === 0 && (
+              <p className="mb-5 px-1 py-6 text-center text-sm text-text-tertiary">
+                Nenhum WOD corresponde a “{query.trim()}”.
+              </p>
             )}
 
             {/* Suggested */}
@@ -192,6 +268,7 @@ export function WodPickerDrawer({
               </div>
             )}
     </DrawerShell>
+    </>
   );
 }
 

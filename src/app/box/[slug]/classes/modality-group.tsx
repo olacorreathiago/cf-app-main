@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { SlotCard, type ClassSlot } from "./slot-card";
 import { WodPickerDrawer } from "./wod-picker-drawer";
-import type { ClassTemplate, Wod } from "@/types";
+import type { ClassTemplate, Wod, BenchmarkWod } from "@/types";
 
 interface Coach {
   id: string;
@@ -22,6 +22,7 @@ interface Props {
   coaches: Coach[];
   ownerProfileId: string | null;
   publishedWods: Wod[];
+  benchmarks: BenchmarkWod[];
   selectMode?: "publish" | "edit";
   selectedSlots?: Set<string>;
   onToggleSlot?: (startsAt: string) => void;
@@ -38,6 +39,7 @@ export function ModalityGroup({
   coaches,
   ownerProfileId,
   publishedWods,
+  benchmarks,
   selectMode,
   selectedSlots,
   onToggleSlot,
@@ -128,6 +130,7 @@ export function ModalityGroup({
         templates={templates}
         wods={publishedWods}
         currentWodIds={wodIds}
+        benchmarks={benchmarks}
       />
     </>
   );

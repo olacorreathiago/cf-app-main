@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { assignSpecialClassWod, publishClass, deleteSpecialClass } from "@/lib/box/classes-actions";
@@ -9,7 +10,8 @@ import { getClassRoster, addAthleteToClass, removeAthleteFromClass, getAthleteCl
 import type { RosterAttendee, BoxMemberOption, TrialRosterEntry } from "@/lib/box/roster-actions";
 import { PrimaryButton, FieldInput } from "@/components/shared";
 import { cn } from "@/lib/utils";
-import type { ClassInstance, Wod } from "@/types";
+import { WodDrawer } from "../wods/wod-drawer";
+import type { ClassInstance, Wod, BenchmarkWod } from "@/types";
 
 interface Coach {
   id: string;
@@ -24,6 +26,7 @@ interface Props {
   coaches: Coach[];
   ownerProfileId: string | null;
   publishedWods: Wod[];
+  benchmarks: BenchmarkWod[];
   confirmedCount: number;
 }
 
@@ -96,7 +99,8 @@ function displayName(full_name: string | null, nickname: string | null) {
   return nickname ?? full_name ?? "Atleta";
 }
 
-export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, publishedWods, confirmedCount }: Props) {
+export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, publishedWods, benchmarks, confirmedCount }: Props) {
+  const router = useRouter();
   const [drawer, setDrawer] = useState<DrawerType>(null);
   const [pending, startTransition] = useTransition();
   const status = cls.status;
@@ -105,9 +109,15 @@ export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, pub
   const currentWodIds = (cls.wod_ids as string[]) ?? [];
   const [selectedWods, setSelectedWods] = useState<string[]>(currentWodIds);
   const [wodPending, startWodTransition] = useTransition();
+  const [creatingWod, setCreatingWod] = useState(false);
+  const [wodQuery, setWodQuery] = useState("");
 
   useEffect(() => {
-    if (drawer === "wods") setSelectedWods(currentWodIds);
+    if (drawer === "wods") {
+      setSelectedWods(currentWodIds);
+      setCreatingWod(false);
+      setWodQuery("");
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawer]);
 
@@ -214,8 +224,24 @@ export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, pub
   }
 
   const hasWodChanges = selectedWods.length !== currentWodIds.length || selectedWods.some((id) => !currentWodIds.includes(id));
-  const suggested = publishedWods.filter((w) => w.scheduled_for === date);
-  const others = publishedWods.filter((w) => w.scheduled_for !== date);
+  const wq = wodQuery.trim().toLowerCase();
+  const filteredWods = publishedWods.filter(
+    (w) =>
+      !wq ||
+      w.title.toLowerCase().includes(wq) ||
+      w.type.toLowerCase().includes(wq) ||
+      (w.description ?? "").toLowerCase().includes(wq)
+  );
+  const suggested = filteredWods.filter((w) => w.scheduled_for === date);
+  const others = filteredWods.filter((w) => w.scheduled_for !== date);
+
+  // The WOD is created while the picker is hidden; on return it is already
+  // ticked and router.refresh() brings it into `publishedWods`.
+  function handleWodCreated(wodId: string) {
+    setSelectedWods((p) => (p.includes(wodId) ? p : [...p, wodId]));
+    setCreatingWod(false);
+    router.refresh();
+  }
 
   return (
     <>
@@ -341,9 +367,49 @@ export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, pub
       </Drawer>
 
       {/* WOD picker drawer */}
-      <Drawer open={drawer === "wods"} onClose={() => setDrawer(null)}
+      <WodDrawer
+        open={drawer === "wods" && creatingWod}
+        onClose={() => setCreatingWod(false)}
+        boxId={boxId}
+        benchmarks={benchmarks}
+        publishOnly
+        onCreated={handleWodCreated}
+      />
+      <Drawer open={drawer === "wods" && !creatingWod} onClose={() => setDrawer(null)}
         title="Seleccionar WODs" subtitle={`${cls.name} · ${time}`}>
         <div className="space-y-5">
+          <button
+            type="button"
+            onClick={() => setCreatingWod(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/50 hover:text-text-primary"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M7 2.5v9M2.5 7h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            Criar novo WOD
+          </button>
+          {publishedWods.length > 0 && (
+            <div className="relative">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"
+                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary">
+                <circle cx="7" cy="7" r="4.75" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+              <input
+                type="search"
+                value={wodQuery}
+                onChange={(e) => setWodQuery(e.target.value)}
+                placeholder="Pesquisar WODs…"
+                aria-label="Pesquisar WODs"
+                className="w-full rounded-xl border border-border bg-bg-input py-2.5 pl-9 pr-3 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent/50 focus:outline-none"
+              />
+            </div>
+          )}
+          {publishedWods.length > 0 && filteredWods.length === 0 && (
+            <p className="py-4 text-center text-sm text-text-tertiary">
+              Nenhum WOD corresponde a “{wodQuery.trim()}”.
+            </p>
+          )}
           {suggested.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-widest text-text-tertiary">Sugeridos para este dia</p>
@@ -399,7 +465,7 @@ export function SpecialSlotCard({ cls, boxId, slug, coaches, ownerProfileId, pub
             </div>
           )}
           {publishedWods.length === 0 && (
-            <p className="text-sm text-text-tertiary text-center py-4">Sem WODs publicados disponíveis.</p>
+            <p className="text-sm text-text-tertiary text-center py-4">Sem WODs publicados. Cria o primeiro com o botão acima.</p>
           )}
           <div className="space-y-2 pt-1">
             <PrimaryButton loading={wodPending} onClick={handleSaveWods} disabled={!hasWodChanges && currentWodIds.length > 0}>

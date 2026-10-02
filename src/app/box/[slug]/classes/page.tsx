@@ -7,6 +7,7 @@ import { pt } from "date-fns/locale";
 import { ClassesClient, type DayData } from "./classes-client";
 import type { ClassInstance, ClassTemplate, Wod } from "@/types";
 import type { ClassSlot } from "./slot-card";
+import { getBenchmarkWods } from "@/lib/box/wod-actions";
 
 export const metadata: Metadata = { title: "Aulas" };
 
@@ -59,6 +60,7 @@ export default async function ClassesPage({ params, searchParams }: Props) {
     { data: coachMemberships },
     { data: ownerMembership },
     { data: publishedWods },
+    benchmarks,
   ] = await Promise.all([
     supabase
       .from("class_templates")
@@ -91,6 +93,7 @@ export default async function ClassesPage({ params, searchParams }: Props) {
       .eq("box_id", box.id)
       .not("published_at", "is", null)
       .order("scheduled_for", { ascending: false, nullsFirst: false }),
+    getBenchmarkWods(),
   ]);
 
   const coaches = (coachMemberships ?? [])
@@ -239,6 +242,7 @@ export default async function ClassesPage({ params, searchParams }: Props) {
         coaches={coaches}
         ownerProfileId={ownerProfileId}
         publishedWods={(publishedWods ?? []) as Wod[]}
+        benchmarks={benchmarks}
         hasAnyTemplates={hasAnyTemplates}
         weekLabel={weekLabel}
         prevWeek={prevWeek}

@@ -14,7 +14,7 @@ import {
   type BulkSlot,
 } from "@/lib/box/classes-actions";
 import { PrimaryButton } from "@/components/shared";
-import type { ClassInstance, ClassTemplate, Wod } from "@/types";
+import type { ClassInstance, ClassTemplate, Wod, BenchmarkWod } from "@/types";
 import type { ClassSlot } from "./slot-card";
 
 interface Coach {
@@ -44,6 +44,7 @@ interface Props {
   coaches: Coach[];
   ownerProfileId: string | null;
   publishedWods: Wod[];
+  benchmarks: BenchmarkWod[];
   hasAnyTemplates: boolean;
   weekLabel: string;
   prevWeek: string;
@@ -59,6 +60,7 @@ export function ClassesClient({
   coaches,
   ownerProfileId,
   publishedWods,
+  benchmarks,
   hasAnyTemplates,
   weekLabel,
   prevWeek,
@@ -425,6 +427,7 @@ export function ClassesClient({
                       coaches={coaches}
                       ownerProfileId={ownerProfileId}
                       publishedWods={publishedWods}
+                      benchmarks={benchmarks}
                       selectMode={selectMode ?? undefined}
                       selectedSlots={selected}
                       onToggleSlot={toggleSlot}
@@ -441,6 +444,7 @@ export function ClassesClient({
                       coaches={coaches}
                       ownerProfileId={ownerProfileId}
                       publishedWods={publishedWods}
+                      benchmarks={benchmarks}
                       confirmedCount={confirmedCount}
                     />
                   ))}
