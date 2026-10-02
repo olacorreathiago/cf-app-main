@@ -20,7 +20,7 @@ export interface NotificationPreference {
   email: boolean;
 }
 
-const BASE_TYPES: NotificationType[] = ["class_cancelled", "waitlist_promoted", "new_post", "athlete_removed"];
+const BASE_TYPES: NotificationType[] = ["class_cancelled", "waitlist_promoted", "new_post", "athlete_removed", "consistency_checkin"];
 const STAFF_TYPES: NotificationType[] = ["new_drop_in", "class_starting"];
 const STAFF_ALWAYS_IN_APP: Set<NotificationType> = new Set(["new_drop_in", "class_starting"]);
 

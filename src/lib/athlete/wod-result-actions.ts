@@ -4,6 +4,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { evaluatePR } from "./pr-eval";
 import type { WodResultInput } from "@/schemas/wod-result";
+import { localDayIso } from "@/lib/time";
 
 export interface RecordResultResponse {
   error?: string;
@@ -21,16 +22,16 @@ const NO_CHECKIN_ERROR = "Sem check-in confirmado nesta aula — pede ao coach p
 // ── "Tardio" (late) detection ───────────────────────────────────────────────
 // The result's date is the class's starts_at (not recorded_at). A result is
 // "tardio" when it is inserted/edited on a calendar day after the class day.
-// Follows the same day-boundary convention as dashboard/leaderboard queries:
-// compare local calendar dates using the T00:00–T23:59:59.999Z window.
-
-function calendarDayIso(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
+//
+// The two sides are read differently on purpose: starts_at already holds local
+// wall time stored as UTC, so slicing its ISO string gives the class day
+// directly, while "now" is a real instant and has to be converted to the box's
+// timezone first — otherwise a result logged at 00:30 in summer would compare
+// against the previous UTC day and be flagged late a day early.
 
 function isLoggedLate(classDate: string | null): boolean {
   if (!classDate) return false; // legacy/manual results are never late
-  return calendarDayIso(new Date()) > calendarDayIso(new Date(classDate));
+  return localDayIso() > new Date(classDate).toISOString().slice(0, 10);
 }
 
 async function hasConfirmedCheckin(

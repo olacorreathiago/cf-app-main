@@ -117,15 +117,18 @@ export default async function ClassesPage({ params, searchParams }: Props) {
         .from("drop_ins")
         .select("class_id")
         .in("class_id", allInstanceIds)
-        .neq("status", "cancelled"),
+        .eq("status", "pending"),
     ]);
     for (const row of countRows ?? []) {
+      // confirmed drop-ins are already included here — get_class_booking_counts
+      // unions bookings and confirmed drop_ins, see migration 00048
       countMap[row.class_id] = row.confirmed_count ?? 0;
     }
     for (const row of trialRows ?? []) {
       if (row.class_id) countMap[row.class_id] = (countMap[row.class_id] ?? 0) + 1;
     }
     for (const row of dropInRows ?? []) {
+      // only pending drop-ins added here to avoid double-counting confirmed ones
       if (row.class_id) countMap[row.class_id] = (countMap[row.class_id] ?? 0) + 1;
     }
   }

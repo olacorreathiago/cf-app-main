@@ -2,6 +2,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { notifyConsistencyCheckin } from "@/lib/notifications/send";
 
 export interface AvailableMember {
   user_id: string;
@@ -14,16 +15,34 @@ export async function checkInAthlete(
   attended: boolean | null,
   slug: string
 ): Promise<{ error?: string }> {
-  const { error } = await supabaseAdmin
+  const { data: booking, error } = await supabaseAdmin
     .from("bookings")
     .update({
       attended,
       checked_in_at: attended !== null ? new Date().toISOString() : null,
     })
-    .eq("id", bookingId);
+    .eq("id", bookingId)
+    .select("user_id, class_id, classes(box_id, starts_at)")
+    .single();
 
   if (error) return { error: error.message };
   revalidatePath(`/box/${slug}/today`);
+
+  // Consistency payoff — the athlete's only feedback for a coach's check-in.
+  // Never blocks or fails the check-in itself; best-effort only.
+  if (attended === true && booking) {
+    const cls = booking.classes as unknown as { box_id: string; starts_at: string } | null;
+    if (cls) {
+      notifyConsistencyCheckin({
+        userId: booking.user_id,
+        boxId: cls.box_id,
+        bookingId,
+        classId: booking.class_id,
+        classStartsAt: cls.starts_at,
+      }).catch(() => {});
+    }
+  }
+
   return {};
 }
 

@@ -39,14 +39,20 @@ export async function checkClassStartingNotifications(boxId: string, userId: str
   if (!toInsert.length) return;
 
   await supabaseAdmin.from("notifications").insert(
-    toInsert.map((c) => ({
-      user_id: userId,
-      box_id: boxId,
-      type: "class_starting",
-      title: `A aula começou: ${c.name}`,
-      body: "Realiza os check-ins dos atletas.",
-      data: { class_id: c.id, class_name: c.name, starts_at: c.starts_at },
-    }))
+    toInsert.map((c) => {
+      // starts_at holds local wall time stored as UTC, so it must be read back as UTC.
+      const time = new Date(c.starts_at).toLocaleTimeString("pt-PT", {
+        hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC",
+      });
+      return {
+        user_id: userId,
+        box_id: boxId,
+        type: "class_starting",
+        title: `A aula começou: ${c.name} ${time}`,
+        body: "Realiza os check-ins dos atletas.",
+        data: { class_id: c.id, class_name: c.name, starts_at: c.starts_at },
+      };
+    })
   );
 }
 

@@ -17,6 +17,7 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   payment_received: "Pagamento recebido",
   payment_overdue: "Pagamento em atraso",
   box_closed: "Box encerrada",
+  consistency_checkin: "Presenças registadas",
 };
 
 const HAS_EMAIL: Record<NotificationType, boolean> = {
@@ -29,6 +30,7 @@ const HAS_EMAIL: Record<NotificationType, boolean> = {
   payment_received: true,
   payment_overdue: true,
   box_closed: false,
+  consistency_checkin: false,
 };
 
 const ALWAYS_IN_APP: Set<NotificationType> = new Set(["new_drop_in", "class_starting"]);

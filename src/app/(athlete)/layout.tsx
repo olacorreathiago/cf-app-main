@@ -8,6 +8,7 @@ import { AppLogo } from "@/components/shared/app-logo";
 import type { AthleteBox, AthleteProfileData } from "@/lib/athlete/dashboard-actions";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { getUnreadCount, listNotifications, getPreferences } from "@/lib/notifications/queries";
+import { getAthleteConsistency } from "@/lib/athlete/consistency-actions";
 
 function getProfileCompletion(profile: AthleteProfileData): number {
   const fields = [
@@ -174,6 +175,13 @@ export default async function AthleteLayout({ children }: { children: React.Reac
       ])
     : [0, [], []];
 
+  const weeklyPill =
+    activeBox && !activeBox.closed
+      ? await getAthleteConsistency(activeBox.id).then((c) =>
+          c.week.target != null ? { sessions: c.week.sessions, target: c.week.target } : null
+        )
+      : null;
+
   return (
     <div className="flex h-[100svh] bg-bg-base text-foreground">
 
@@ -187,7 +195,7 @@ export default async function AthleteLayout({ children }: { children: React.Reac
         </div>
 
         {/* Nav */}
-        <AthleteSidebar boxes={allBoxes} activeBox={activeBox} isProfessional={isProfessional} />
+        <AthleteSidebar boxes={allBoxes} activeBox={activeBox} isProfessional={isProfessional} weeklyPill={weeklyPill} />
       </aside>
 
       {/* ── Main area ─────────────────────────────────────────── */}

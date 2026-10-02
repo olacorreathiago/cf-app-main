@@ -3,6 +3,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { Resend } from "resend";
 import { APP_CONFIG } from "@/lib/config";
+import { computeAthleteConsistency } from "@/lib/athlete/consistency-actions";
 
 export type NotificationType =
   | "class_cancelled"
@@ -13,7 +14,8 @@ export type NotificationType =
   | "new_drop_in"
   | "payment_received"
   | "payment_overdue"
-  | "box_closed";
+  | "box_closed"
+  | "consistency_checkin";
 
 export interface NotificationData {
   class_id?: string;
@@ -22,7 +24,10 @@ export interface NotificationData {
   cancellation_reason?: string;
   post_id?: string;
   post_title?: string;
+  booking_id?: string;
 }
+
+const WEEKDAY_NAMES_PT = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"];
 
 const ALWAYS_IN_APP: Set<NotificationType> = new Set(["new_drop_in", "class_starting"]);
 
@@ -272,4 +277,57 @@ export async function notifyNewPost({
     });
   }
   // new_post has no email channel by design
+}
+
+// The athlete's only feedback for a coach's check-in — see docs/CONSISTENCY_FLOW.md
+// §5. Tied to the booking, not the day it was marked: a coach correcting
+// Tuesday's attendance on Friday must not re-notify, and the title always
+// names the class day, never "hoje" (the correction can happen days later).
+export async function notifyConsistencyCheckin({
+  userId,
+  boxId,
+  bookingId,
+  classId,
+  classStartsAt,
+}: {
+  userId: string;
+  boxId: string;
+  bookingId: string;
+  classId: string;
+  classStartsAt: string;
+}) {
+  const { data: existing } = await supabaseAdmin
+    .from("notifications")
+    .select("id")
+    .eq("type", "consistency_checkin")
+    .eq("data->>booking_id", bookingId)
+    .maybeSingle();
+  if (existing) return;
+
+  const prefs = await getPrefs(userId, boxId, "consistency_checkin");
+  if (!prefs.in_app) return;
+
+  const consistency = await computeAthleteConsistency(userId, boxId);
+
+  const dayIso = classStartsAt.slice(0, 10);
+  const weekdayMon0 = (new Date(`${dayIso}T12:00:00Z`).getUTCDay() + 6) % 7;
+  const weekdayName = WEEKDAY_NAMES_PT[weekdayMon0];
+
+  const paceSuffix =
+    consistency.week.pace === "ahead"
+      ? " — acima do ritmo"
+      : consistency.week.pace === "on"
+        ? " — no ritmo"
+        : consistency.week.pace === "behind"
+          ? ` — faltam ${consistency.week.missingForTarget} para a meta`
+          : "";
+
+  await insertNotification({
+    userId,
+    boxId,
+    type: "consistency_checkin",
+    title: `Presença de ${weekdayName} registada`,
+    body: `${consistency.week.sessions}.º treino da semana${paceSuffix}`,
+    data: { class_id: classId, booking_id: bookingId, starts_at: classStartsAt },
+  });
 }

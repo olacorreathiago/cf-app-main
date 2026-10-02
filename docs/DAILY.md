@@ -5,6 +5,42 @@
 
 ---
 
+## 2026-10-02
+
+### Ponto de situação
+- **A janela de 08-02 foi commitada** (`cd06115`: exclusão/encerramento, membership periods, drawer shell, resultados tardios). Não há commits desde 2026-08-02 (~2 meses).
+- **Working tree nova (12 ficheiros alterados + novos, ~+245/−75):** feature de **Consistência (Fase 1)** — `consistency-actions.ts`, `consistency-hero/month-card/week-dots`, `weekly-goal-drawer`, `src/lib/time.ts` (helper de fusos, fecha o ponto a rever de 08-02), migrações `00047_consistency.sql` e `00048_dropins_in_counts.sql` (drop-ins confirmados passam a contar na lotação).
+- **`purgeAccount()` já tem chamador:** `src/app/api/cron/purge-accounts/route.ts` + `vercel.json` (cron diário 04:30). Falta confirmar `CRON_SECRET` e o deploy.
+- Notificações mexidas (`send.ts`, `actions.ts`, `queries.ts`, `notification-bell`) — ligadas à consistência (lembrete/meta semanal) a confirmar.
+- Spec em `docs/CONSISTENCY_FLOW.md`, mock em `docs/mocks/consistency.html`, plano em `docs/prompts/consistencia-fase-1.md`.
+
+### Visão estratégica para lançamento
+- **Tese:** o Zekko vende-se à box como "o gestor que trata de presenças, pagamentos e retenção sem folhas de cálculo", e ao atleta como "a app onde o treino dele tem história" (Records + Consistência). Atleta é o motor de retenção, box é quem paga.
+- **Lançar pequeno, não largo:** piloto fechado com **3–5 boxes** conhecidas (idealmente 1 em PT que já te dê feedback semanal), gratuito/preço simbólico durante 6–8 semanas em troca de uso real e testemunho. Não abrir registo público nem Discovery de boxes antes disto.
+- **Âmbito mínimo vendável (MVP de lançamento):** agenda+reservas+waitlist ✅, WOD+resultados+leaderboard ✅, membros/trials/drop-ins ✅, planos+faturação manual ✅, notificações ✅, exclusão/RGPD ✅, consistência (em curso). **Fora do lançamento:** Loja, Eventos, Stripe Fase 2, gamificação de pontos, Discovery.
+- **Abordagem de entrada na box:** onboarding assistido (tu importas membros + horário na 1.ª sessão); o atleta entra por convite/link — a box nunca pede aos membros para "descobrirem a app". Medir **ativação** = box com ≥1 semana de aulas criadas + ≥70% dos membros convidados com 1 reserva.
+- **Métricas do piloto:** reservas/semana por box, % de membros ativos semanais, resultados registados por aula, tempo que o coach poupa (perguntar), churn de membros. Se atleta registar resultados e consistência >2×/semana, o produto pega.
+- **Preço (hipótese a validar):** subscrição Zekko por box por escalão de membros; pagamentos dos atletas ficam manuais na Fase 1, Stripe Connect/PSP PT só depois de haver tração (Fase 2).
+- **Riscos antes de abrir:** (1) RGPD/termos/política de privacidade e DPA para boxes; (2) backups e monitorização (Sentry, uptime) — hoje não há; (3) emails transacionais com domínio próprio (SPF/DKIM); (4) testes automáticos mínimos nos fluxos críticos (reserva, waitlist, faturação); (5) responsivo/PWA — o atleta usa no telemóvel.
+
+### Pendências / perguntas em aberto
+- [ ] **Confirmar aplicação no Supabase das `00044`–`00048`** (por confirmar desde 08-02; `00047`/`00048` são novas).
+- [ ] Testar manualmente exclusão de conta, encerramento/reabertura de box, faturação com lacuna e plano padrão.
+- [ ] Testar Consistência de ponta a ponta (semana, mês-recorde, drawer da meta, check-in tardio a corrigir contagem).
+- [ ] Configurar `CRON_SECRET` na Vercel e verificar a 1.ª execução do cron de purga.
+- [ ] Dashboard por aula (2 sessões do mesmo WOD colapsadas) — continua por fazer.
+- [ ] Commits: working tree por commitar, à espera de pedido explícito.
+
+### Próximas tarefas (por ordem)
+1. **Aplicar `00044`–`00048`** e testar os fluxos acumulados (exclusão, billing, plano padrão, consistência).
+2. **Fechar a Consistência Fase 1** (revisão visual vs mock, tsc, notificações) e **commitar** (idealmente: 1 commit consistência, 1 commit cron/purga, 1 commit drop-ins/lotação).
+3. **Dashboard por aula** (último ponto técnico a rever).
+4. **Checklist de pré-piloto:** RGPD/termos, domínio de email, monitorização/backups, testes dos fluxos críticos, revisão mobile/PWA.
+5. **Recrutar 3–5 boxes piloto** e preparar onboarding assistido (import de membros/horário).
+6. Depois do piloto: decidir entre Pagamentos Fase 2 (Stripe Connect/PSP PT), Loja ou Gamificação de pontos conforme o feedback.
+
+---
+
 ## 2026-08-02
 
 ### Ponto de situação

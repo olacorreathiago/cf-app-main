@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { fetchWodsForClasses } from "./classes-actions";
+import { dayRangeUtc, localDayIso, localYearMonth, monthRangeUtc } from "@/lib/time";
 
 export interface AthleteBox {
   id: string;
@@ -38,6 +39,10 @@ export interface AthleteDashboardWod {
   id: string;
   /** Class the WOD was resolved from (used to scope the result) */
   class_id?: string | null;
+  /** Name of that class — shown so a WOD trained twice in a day is unambiguous */
+  class_name?: string | null;
+  /** starts_at of that class, same purpose as class_name */
+  class_starts_at?: string | null;
   title: string;
   type: string;
   category: string;
@@ -169,7 +174,7 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
   const myDropIns: AthleteDropIn[] = [];
   const userEmail = (await supabase.from("profiles").select("email").eq("id", user.id).single()).data?.email;
   {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = localDayIso();
     // Query by user_id first, then by email as fallback (covers drop-ins created before user_id was set)
     const orFilter = userEmail
       ? `user_id.eq.${user.id},email.eq.${userEmail.toLowerCase()}`
@@ -376,14 +381,13 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
   const allWodIds = [...new Set(
     todayClasses.filter((c) => attendedTodayIds.has(c.id)).flatMap((c) => c.wod_ids)
   )];
-  // Map each WOD to the attended class it came from (scopes the result to the class)
-  const wodClassMap: Record<string, string> = {};
-  for (const c of todayClasses) {
-    if (!attendedTodayIds.has(c.id)) continue;
-    for (const wid of c.wod_ids) {
-      if (!wodClassMap[wid]) wodClassMap[wid] = c.id;
-    }
-  }
+  // One entry per (attended class × its WODs) — NOT deduplicated by wod_id.
+  // The same WOD trained in two slots is two separate sessions with two
+  // separate results; collapsing them made the second one unreachable here.
+  const attendedWodSlots = todayClasses
+    .filter((c) => attendedTodayIds.has(c.id))
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    .flatMap((c) => c.wod_ids.map((wid) => ({ wodId: wid, classId: c.id, className: c.name, startsAt: c.starts_at })));
   let todayWods: AthleteDashboardWod[] = [];
   if (allWodIds.length > 0) {
     const { data: wods } = await supabase
@@ -392,24 +396,27 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
       .in("id", allWodIds)
       .not("published_at", "is", null);
 
-    // Fetch user's existing results for these WODs (today)
-    const todayIso = new Date().toISOString().slice(0, 10);
+    // Fetch user's existing results for these WODs (today). recorded_at is a
+    // real instant, so the window has to be the box-local day in UTC terms.
+    const today = dayRangeUtc(localDayIso());
     const { data: myResults } = await supabase
       .from("wod_results")
       .select("id, wod_id, class_id, score_display, rx")
       .eq("user_id", user.id)
       .eq("box_id", activeBox.id)
       .in("wod_id", allWodIds)
-      .gte("recorded_at", `${todayIso}T00:00:00.000Z`)
-      .lte("recorded_at", `${todayIso}T23:59:59.999Z`);
-    // Index by class_id (each schedule slot is a distinct class sharing the same wod_id).
+      .gte("recorded_at", today.from)
+      .lt("recorded_at", today.to);
+    // Index by class_id + wod_id — a slot is one class, but a class can carry
+    // several WODs, so class_id alone would make them overwrite each other.
     // Fall back to wod_id only for legacy results recorded before class_id was tracked.
     const myResultByClassMap: Record<string, { id: string; score_display: string; rx: boolean; is_pr: boolean }> = {};
     const myResultByWodMap: Record<string, { id: string; score_display: string; rx: boolean; is_pr: boolean }> = {};
+    const slotKey = (classId: string, wodId: string) => `${classId}:${wodId}`;
     for (const r of myResults ?? []) {
       const entry = { id: r.id, score_display: r.score_display ?? "", rx: r.rx, is_pr: false };
       if (r.class_id) {
-        myResultByClassMap[r.class_id] = entry;
+        myResultByClassMap[slotKey(r.class_id, r.wod_id)] = entry;
       } else {
         myResultByWodMap[r.wod_id] = entry;
       }
@@ -425,14 +432,29 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
       const prResultIds = new Set((prRows ?? []).map((p) => p.wod_result_id));
       for (const r of myResults ?? []) {
         if (!prResultIds.has(r.id)) continue;
-        const entry = r.class_id ? myResultByClassMap[r.class_id] : myResultByWodMap[r.wod_id];
+        const entry = r.class_id ? myResultByClassMap[slotKey(r.class_id, r.wod_id)] : myResultByWodMap[r.wod_id];
         if (entry) entry.is_pr = true;
       }
     }
 
-    todayWods = (wods ?? []).map((w) => ({
+    const wodById = new Map((wods ?? []).map((w) => [w.id, w]));
+    // A legacy result (no class_id) can only stand in for one slot — otherwise
+    // it would attach itself to every session of the same WOD, which is the
+    // bug the class_id indexing exists to fix.
+    const usedLegacyWodIds = new Set<string>();
+    todayWods = attendedWodSlots.flatMap((slot) => {
+      const w = wodById.get(slot.wodId);
+      if (!w) return []; // unpublished — not visible to the athlete
+      let myResult = myResultByClassMap[slotKey(slot.classId, w.id)] ?? null;
+      if (!myResult && !usedLegacyWodIds.has(w.id) && myResultByWodMap[w.id]) {
+        myResult = myResultByWodMap[w.id];
+        usedLegacyWodIds.add(w.id);
+      }
+      return [{
       id: w.id,
-      class_id: wodClassMap[w.id] ?? null,
+      class_id: slot.classId,
+      class_name: slot.className,
+      class_starts_at: slot.startsAt,
       title: w.title,
       type: w.type,
       category: w.category,
@@ -443,8 +465,9 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
       scaling_notes: w.scaling_notes,
       result_sets: w.result_sets ?? null,
       result_reps_per_set: w.result_reps_per_set ?? null,
-      my_result: (wodClassMap[w.id] ? myResultByClassMap[wodClassMap[w.id]] : undefined) ?? myResultByWodMap[w.id] ?? null,
-    }));
+      my_result: myResult,
+      }];
+    });
   }
 
   // Upcoming classes — next 7 days (excluding today)
@@ -532,11 +555,10 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
     .gte("achieved_at", twoWeeksAgo.toISOString())
     .order("achieved_at", { ascending: false });
 
-  // Stats
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+  // Stats — month boundaries follow the box's timezone, not the server's.
+  const { year, month } = localYearMonth();
+  const thisMonth = monthRangeUtc(year, month);
+  const prevMonth = monthRangeUtc(month === 1 ? year - 1 : year, month === 1 ? 12 : month - 1);
 
   const [{ count: wodsCount }, { count: wodsPrevCount }, { count: prsCount }] = await Promise.all([
     supabase
@@ -544,14 +566,15 @@ export async function getAthleteDashboardData(): Promise<AthleteDashboardData> {
       .select("*", { count: "exact", head: true })
       .eq("user_id", user.id)
       .eq("box_id", activeBox.id)
-      .gte("recorded_at", monthStart.toISOString()),
+      .gte("recorded_at", thisMonth.from)
+      .lt("recorded_at", thisMonth.to),
     supabase
       .from("wod_results")
       .select("*", { count: "exact", head: true })
       .eq("user_id", user.id)
       .eq("box_id", activeBox.id)
-      .gte("recorded_at", prevMonthStart.toISOString())
-      .lte("recorded_at", prevMonthEnd.toISOString()),
+      .gte("recorded_at", prevMonth.from)
+      .lt("recorded_at", prevMonth.to),
     supabase
       .from("prs")
       .select("*", { count: "exact", head: true })

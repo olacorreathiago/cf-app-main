@@ -109,14 +109,33 @@ const comunidadeSection: NavSection = {
   ],
 };
 
+export interface WeeklyConsistencyPill {
+  sessions: number;
+  target: number;
+}
+
+function ConsistencyPill({ pill }: { pill: WeeklyConsistencyPill }) {
+  return (
+    <span className="ml-1.5 inline-flex shrink-0 items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-bold text-accent">
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.4" />
+        <circle cx="12" cy="12" r="3.2" fill="currentColor" />
+      </svg>
+      {pill.sessions}/{pill.target}
+    </span>
+  );
+}
+
 export function AthleteSidebar({
   boxes,
   activeBox,
   isProfessional,
+  weeklyPill,
 }: {
   boxes: AthleteBox[];
   activeBox: AthleteBox | null;
   isProfessional: boolean;
+  weeklyPill?: WeeklyConsistencyPill | null;
 }) {
   const pathname = usePathname();
 
@@ -134,9 +153,9 @@ export function AthleteSidebar({
       <SectionLabel>Minhas Boxes</SectionLabel>
       <div className="mb-2">
         {boxes.length > 1 ? (
-          <BoxSelectorRow boxes={boxes} activeBox={activeBox} />
+          <BoxSelectorRow boxes={boxes} activeBox={activeBox} weeklyPill={weeklyPill} />
         ) : (
-          boxes.map((box) => <BoxRow key={box.id} box={box} activeBox={activeBox} />)
+          boxes.map((box) => <BoxRow key={box.id} box={box} activeBox={activeBox} weeklyPill={weeklyPill} />)
         )}
         {isProfessional && <AddBoxRow />}
         {boxes.length === 0 && !isProfessional && (
@@ -173,7 +192,15 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // A box in "Minhas Boxes". Staff role → navigates to management (/box/slug),
 // switching the whole shell. Athlete-only → switches active box context.
-function BoxRow({ box, activeBox }: { box: AthleteBox; activeBox: AthleteBox | null }) {
+function BoxRow({
+  box,
+  activeBox,
+  weeklyPill,
+}: {
+  box: AthleteBox;
+  activeBox: AthleteBox | null;
+  weeklyPill?: WeeklyConsistencyPill | null;
+}) {
   const pathname = usePathname();
   const isStaff = STAFF_ROLES.includes(box.role);
   const isActive = box.id === activeBox?.id;
@@ -182,6 +209,7 @@ function BoxRow({ box, activeBox }: { box: AthleteBox; activeBox: AthleteBox | n
     <>
       <BoxAvatar box={box} />
       <span className="truncate">{box.name}</span>
+      {isActive && !box.closed && weeklyPill && <ConsistencyPill pill={weeklyPill} />}
       {box.closed && (
         <span className="ml-auto shrink-0 rounded-full bg-error/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-error">
           Encerrada
@@ -224,7 +252,15 @@ function BoxRow({ box, activeBox }: { box: AthleteBox; activeBox: AthleteBox | n
 // With more than one box, "Minhas Boxes" becomes a split control: the box body
 // (avatar + name) links to that box — management for staff boxes — while the
 // chevron opens the selector to switch which box is active.
-function BoxSelectorRow({ boxes, activeBox }: { boxes: AthleteBox[]; activeBox: AthleteBox | null }) {
+function BoxSelectorRow({
+  boxes,
+  activeBox,
+  weeklyPill,
+}: {
+  boxes: AthleteBox[];
+  activeBox: AthleteBox | null;
+  weeklyPill?: WeeklyConsistencyPill | null;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -243,6 +279,7 @@ function BoxSelectorRow({ boxes, activeBox }: { boxes: AthleteBox[]; activeBox: 
     <>
       <BoxAvatar box={current} />
       <span className="truncate font-medium">{current.name}</span>
+      {!current.closed && weeklyPill && <ConsistencyPill pill={weeklyPill} />}
     </>
   );
   const bodyCls = "flex min-w-0 flex-1 items-center gap-3 py-2 pl-3 pr-1 text-left";

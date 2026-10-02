@@ -20,6 +20,12 @@ interface Props {
 
 export function WodCard({ wod, boxId }: Props) {
   const colorClass = WOD_TYPE_COLOR[wod.type] ?? WOD_TYPE_COLOR.Custom;
+  // starts_at holds local wall time stored as UTC, so it must be read back as UTC.
+  const classTime = wod.class_starts_at
+    ? new Date(wod.class_starts_at).toLocaleTimeString("pt-PT", {
+        hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC",
+      })
+    : null;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [result, setResult] = useState(wod.my_result);
 
@@ -32,7 +38,17 @@ export function WodCard({ wod, boxId }: Props) {
       <div className="rounded-2xl border border-border bg-bg-card p-5 space-y-3">
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
-          <h3 className="font-semibold text-text-primary">{wod.title}</h3>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-text-primary">{wod.title}</h3>
+            {/* The session this card belongs to — the same WOD can appear twice
+                in a day, one card per class, and the result goes to this one. */}
+            {classTime && (
+              <p className="mt-0.5 text-xs text-text-tertiary">
+                {classTime}
+                {wod.class_name ? ` · ${wod.class_name}` : ""}
+              </p>
+            )}
+          </div>
           <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${colorClass}`}>
             {wod.type}
             {wod.time_cap_minutes ? ` · ${wod.time_cap_minutes}min` : ""}

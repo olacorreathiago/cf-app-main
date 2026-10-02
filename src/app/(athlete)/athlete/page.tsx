@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { getAthleteDashboardData } from "@/lib/athlete/dashboard-actions";
+import { getAthleteConsistency } from "@/lib/athlete/consistency-actions";
 
 export const metadata: Metadata = { title: "Início" };
 import { ClassCard } from "@/components/athlete/class-card";
 import { WodCard } from "@/components/athlete/wod-card";
 import { FeedPreview } from "@/components/athlete/feed-preview";
+import { ConsistencyHero } from "@/components/athlete/consistency-hero";
+import { ConsistencyMonthCard } from "@/components/athlete/consistency-month-card";
 import { getLatestBoxPosts } from "@/lib/athlete/feed-actions";
 import { APP_CONFIG } from "@/lib/config";
 import { format } from "date-fns";
@@ -29,6 +32,7 @@ export default async function AthleteDashboardPage() {
   } = await getAthleteDashboardData();
 
   const latestPosts = activeBox ? await getLatestBoxPosts(activeBox.id, 3) : [];
+  const consistency = activeBox ? await getAthleteConsistency(activeBox.id) : null;
 
   const nameDisplay = buildGreeting(profile.full_name, profile.nickname);
   const todayLabel = format(new Date(), "EEEE, d 'de' MMMM", { locale: pt });
@@ -188,7 +192,7 @@ export default async function AthleteDashboardPage() {
                 <p className="label-caps text-text-tertiary">WOD do dia</p>
                 <div className="space-y-3">
                   {todayWods.map((wod) => (
-                    <WodCard key={wod.id} wod={wod} boxId={activeBox.id} />
+                    <WodCard key={`${wod.class_id ?? "no-class"}:${wod.id}`} wod={wod} boxId={activeBox.id} />
                   ))}
                 </div>
               </section>
@@ -217,29 +221,22 @@ export default async function AthleteDashboardPage() {
           {/* ── RIGHT COLUMN ────────────────────────────────── */}
           <div className="space-y-6">
 
-            {/* WOD hero card — WODs this month */}
+            {/* Consistência — meta da semana */}
+            {consistency && <ConsistencyHero boxId={activeBox.id} consistency={consistency} />}
+
+            {/* Recorde do mês */}
+            {consistency && <ConsistencyMonthCard month={consistency.month} boxName={activeBox.name} />}
+
+            {/* WODs no mês */}
             <Link
               href="/athlete/classes"
-              className="group relative block overflow-hidden rounded-2xl p-6 transition-transform duration-200 hover:-translate-y-0.5"
-              style={{ minHeight: 150, background: "linear-gradient(150deg, color-mix(in srgb, var(--accent) 92%, white) 0%, var(--accent) 55%, color-mix(in srgb, var(--accent) 78%, black) 100%)" }}
+              className="group flex items-center justify-between rounded-2xl border border-border bg-bg-card p-5 transition-colors duration-150 hover:border-border-strong"
             >
-              {/* Soft light blobs */}
-              <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-white/10" />
-              <div className="pointer-events-none absolute -bottom-12 -left-6 h-40 w-40 rounded-full bg-black/5" />
-
-              {/* Lightning glyph, top-right */}
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="absolute right-6 top-6" style={{ color: "rgba(0,0,0,0.8)" }}>
-                <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-              </svg>
-
-              <p className="relative text-6xl font-display font-bold leading-none" style={{ color: "rgba(0,0,0,0.85)" }}>
-                {statsWodsThisMonth}
-              </p>
-              <p className="relative mt-2 text-sm font-medium" style={{ color: "rgba(0,0,0,0.6)" }}>
-                WOD&apos;s em {monthLabelCap}
-              </p>
-
-              <span className="relative mt-6 inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: "rgba(0,0,0,0.7)" }}>
+              <div>
+                <p className="font-display text-3xl leading-none text-text-primary">{statsWodsThisMonth}</p>
+                <p className="mt-1.5 text-xs text-text-tertiary">WOD&apos;s em {monthLabelCap}</p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
                 Ver Histórico
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="transition-transform duration-200 group-hover:translate-x-0.5">
                   <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
