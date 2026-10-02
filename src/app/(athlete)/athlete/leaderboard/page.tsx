@@ -17,6 +17,7 @@ export default async function AthleteLeaderboardPage() {
       <LeaderboardClient
         benchmarkWods={data.benchmarkWods}
         myUserId={data.myUserId}
+        myGender={data.myGender}
       />
     </div>
   );

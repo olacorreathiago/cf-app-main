@@ -240,14 +240,49 @@ function WodDetailPopover({ wod, onClose }: { wod: DailyLeaderboardWod; onClose:
   );
 }
 
-const DAILY_SECTIONS: { key: "men_rx" | "women_rx" | "men_scaled" | "women_scaled"; label: string }[] = [
-  { key: "men_rx",      label: "Homens RX" },
-  { key: "women_rx",    label: "Mulheres RX" },
-  { key: "men_scaled",  label: "Homens Scaled" },
-  { key: "women_scaled",label: "Mulheres Scaled" },
-];
+type DailyGender = "male" | "female";
+type DailyLevel = "rx" | "scaled";
 
-function WodDailyCard({ wod }: { wod: DailyLeaderboardWod }) {
+function sectionKey(gender: DailyGender, level: DailyLevel) {
+  return `${gender === "male" ? "men" : "women"}_${level}` as "men_rx" | "women_rx" | "men_scaled" | "women_scaled";
+}
+
+function SegmentedControl<T extends string>({ value, onChange, options, label }: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+  label: string;
+}) {
+  return (
+    <div role="group" aria-label={label} className="flex items-center gap-1 rounded-xl border border-border bg-bg-input p-1">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          aria-pressed={value === o.value}
+          className={cn(
+            "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
+            value === o.value
+              ? "bg-bg-base text-text-primary shadow-sm border border-border"
+              : "text-text-tertiary hover:text-text-secondary"
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const SECTION_LABEL: Record<ReturnType<typeof sectionKey>, string> = {
+  men_rx:       "Homens RX",
+  women_rx:     "Mulheres RX",
+  men_scaled:   "Homens Scaled",
+  women_scaled: "Mulheres Scaled",
+};
+
+function WodDailyCard({ wod, section }: { wod: DailyLeaderboardWod; section: ReturnType<typeof sectionKey> }) {
   const [popoverOpen, setPopoverOpen] = useState(false);
   return (
     <div className="relative rounded-2xl border border-border bg-bg-card overflow-visible">
@@ -270,23 +305,21 @@ function WodDailyCard({ wod }: { wod: DailyLeaderboardWod }) {
           {popoverOpen && <WodDetailPopover wod={wod} onClose={() => setPopoverOpen(false)} />}
         </AnimatePresence>
       </div>
-      <div className="divide-y divide-border">
-        {DAILY_SECTIONS.map((s) =>
-          wod[s.key].length > 0 ? (
-            <EntriesSection key={s.key} title={s.label} entries={wod[s.key]} />
-          ) : null
-        )}
-      </div>
+      <EntriesSection title={SECTION_LABEL[section]} entries={wod[section]} />
     </div>
   );
 }
 
-function DailyTab({ myUserId }: { myUserId: string }) {
+function DailyTab({ myUserId, myGender }: { myUserId: string; myGender: DailyGender | null }) {
   const today = format(new Date(), "yyyy-MM-dd");
   const [date, setDate] = useState(today);
   const [wods, setWods] = useState<DailyLeaderboardWod[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Defaults to the athlete's own gender (male if not set — the split only has men/women).
+  const [gender, setGender] = useState<DailyGender>(myGender ?? "male");
+  const [level, setLevel] = useState<DailyLevel>("rx");
+  const section = sectionKey(gender, level);
 
   useEffect(() => { load(today); }, []);
 
@@ -302,26 +335,31 @@ function DailyTab({ myUserId }: { myUserId: string }) {
     }
   }
 
-  const totalAthletes = wods.reduce((sum, w) => {
-    const ids = new Set([
-      ...w.men_rx.map((e) => e.user_id),
-      ...w.women_rx.map((e) => e.user_id),
-      ...w.men_scaled.map((e) => e.user_id),
-      ...w.women_scaled.map((e) => e.user_id),
-    ]);
-    return sum + ids.size;
-  }, 0);
+  const visibleWods = wods.filter((w) => w[section].length > 0);
+  const totalAthletes = new Set(visibleWods.flatMap((w) => w[section].map((e) => e.user_id))).size;
 
   return (
     <div className="space-y-4">
-      {/* Date picker */}
-      <div>
+      {/* Date + filters */}
+      <div className="flex flex-wrap items-center gap-2">
         <input
           type="date"
           value={date}
           max={today}
           onChange={(e) => load(e.target.value)}
           className="rounded-xl border border-border bg-bg-input px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+        />
+        <SegmentedControl
+          label="Género"
+          value={gender}
+          onChange={setGender}
+          options={[{ value: "male", label: "Masculino" }, { value: "female", label: "Feminino" }]}
+        />
+        <SegmentedControl
+          label="Nível"
+          value={level}
+          onChange={setLevel}
+          options={[{ value: "rx", label: "RX" }, { value: "scaled", label: "Scaled" }]}
         />
       </div>
 
@@ -331,19 +369,19 @@ function DailyTab({ myUserId }: { myUserId: string }) {
         </div>
       )}
 
-      {loaded && !loading && wods.length === 0 && (
+      {loaded && !loading && visibleWods.length === 0 && (
         <div className="rounded-2xl border border-border bg-bg-card px-5 py-8 text-center">
-          <p className="text-sm text-text-tertiary">Sem resultados partilhados para este dia.</p>
+          <p className="text-sm text-text-tertiary">
+            {wods.length === 0
+              ? "Sem resultados partilhados para este dia."
+              : `Sem resultados em ${SECTION_LABEL[section]} neste dia.`}
+          </p>
         </div>
       )}
 
-      {loaded && !loading && wods.map((wod) => {
-        const hasAny = DAILY_SECTIONS.some((s) => wod[s.key].length > 0);
-        if (!hasAny) return null;
-        return (
-          <WodDailyCard key={wod.wod_id} wod={wod} />
-        );
-      })}
+      {loaded && !loading && visibleWods.map((wod) => (
+        <WodDailyCard key={wod.wod_id} wod={wod} section={section} />
+      ))}
 
       {/* Stats */}
       {loaded && !loading && (
@@ -370,9 +408,10 @@ function DailyTab({ myUserId }: { myUserId: string }) {
 interface Props {
   benchmarkWods: LeaderboardBenchmarkItem[];
   myUserId: string;
+  myGender: "male" | "female" | null;
 }
 
-export function LeaderboardClient({ benchmarkWods, myUserId }: Props) {
+export function LeaderboardClient({ benchmarkWods, myUserId, myGender }: Props) {
   const [tab, setTab] = useState<"daily" | "benchmarks">("daily");
 
   return (
@@ -394,7 +433,7 @@ export function LeaderboardClient({ benchmarkWods, myUserId }: Props) {
       </div>
 
       {tab === "daily" ? (
-        <DailyTab myUserId={myUserId} />
+        <DailyTab myUserId={myUserId} myGender={myGender} />
       ) : (
         <BenchmarkTab benchmarkWods={benchmarkWods} myUserId={myUserId} />
       )}

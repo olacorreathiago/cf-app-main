@@ -53,6 +53,8 @@ export interface LeaderboardBenchmarkItem {
 export interface AthleteLeaderboardData {
   activeBoxId: string;
   myUserId: string;
+  /** The athlete's own gender — default selection of the daily leaderboard filter. */
+  myGender: "male" | "female" | null;
   benchmarkWods: LeaderboardBenchmarkItem[];
 }
 
@@ -102,7 +104,10 @@ export async function getAthleteLeaderboardData(): Promise<AthleteLeaderboardDat
   const supabase = await supabaseServer();
   const { user, activeBoxId } = await resolveBoxAndUser(supabase);
 
-  if (!activeBoxId) return { activeBoxId: "", myUserId: user.id, benchmarkWods: [] };
+  const { data: me } = await supabase.from("profiles").select("gender").eq("id", user.id).maybeSingle();
+  const myGender = me?.gender === "male" || me?.gender === "female" ? me.gender : null;
+
+  if (!activeBoxId) return { activeBoxId: "", myUserId: user.id, myGender, benchmarkWods: [] };
 
   const { data: wods } = await supabase
     .from("wods")
@@ -119,7 +124,7 @@ export async function getAthleteLeaderboardData(): Promise<AthleteLeaderboardDat
     category: w.category ?? "original",
   }));
 
-  return { activeBoxId, myUserId: user.id, benchmarkWods };
+  return { activeBoxId, myUserId: user.id, myGender, benchmarkWods };
 }
 
 export async function getBenchmarkLeaderboard(wodId: string): Promise<BenchmarkLeaderboardData> {
