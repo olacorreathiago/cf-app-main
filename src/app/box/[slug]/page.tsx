@@ -25,15 +25,24 @@ function formatTime(starts_at: string): string {
   });
 }
 
-function ClassRow({ cls }: { cls: OverviewClass }) {
+function ClassRow({ cls, isNext }: { cls: OverviewClass; isNext: boolean }) {
   const cfg = STATUS_CONFIG[cls.status];
   const fillPct = cls.capacity > 0 ? Math.round((cls.confirmed_count / cls.capacity) * 100) : 0;
   const isFull = cls.confirmed_count >= cls.capacity;
 
+  const highlighted = cls.status === "ongoing" || isNext;
+  const finished = cls.status === "finished";
+
   return (
-    <div className={`flex items-stretch gap-0 rounded-xl overflow-hidden border ${cls.status === "ongoing" ? "border-accent/30 bg-accent/5" : "border-border bg-bg-base"}`}>
+    <div
+      className={`flex items-stretch gap-0 rounded-xl overflow-hidden border transition-opacity ${
+        highlighted
+          ? "border-accent/40 bg-accent/5"
+          : "border-border bg-bg-base"
+      } ${finished ? "opacity-55" : ""} ${isNext ? "py-1" : ""}`}
+    >
       {/* Time stripe */}
-      <div className={`flex w-14 shrink-0 flex-col items-center justify-center py-3 ${cls.status === "ongoing" ? "bg-accent/10" : "bg-bg-input/50"}`}>
+      <div className={`flex w-14 shrink-0 flex-col items-center justify-center py-3 ${highlighted ? "bg-accent/10" : "bg-bg-input/50"}`}>
         <span className="text-xs font-semibold text-text-primary tabular-nums leading-none">
           {formatTime(cls.starts_at)}
         </span>
@@ -43,9 +52,9 @@ function ClassRow({ cls }: { cls: OverviewClass }) {
       {/* Content */}
       <div className="flex flex-1 min-w-0 flex-col justify-center gap-1 px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-text-primary truncate">{cls.name}</span>
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0 ${cfg.cls}`}>
-            {cfg.label}
+          <span className={`font-semibold text-text-primary truncate ${isNext ? "text-base" : "text-sm"}`}>{cls.name}</span>
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0 ${isNext ? "bg-accent text-accent-fg" : cfg.cls}`}>
+            {isNext ? "Próxima aula" : cfg.label}
           </span>
         </div>
 
@@ -102,6 +111,7 @@ export default async function BoxOverviewPage({ params }: Props) {
 
   const isManager = ["owner", "partner", "manager"].includes(membership.role);
   const overview = await getBoxOverviewData(box.id);
+  const nextClassId = overview.todayClasses.find((c) => c.status === "upcoming")?.id;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-5 py-7">
@@ -146,7 +156,7 @@ export default async function BoxOverviewPage({ params }: Props) {
             ) : (
               <div className="space-y-2">
                 {overview.todayClasses.map((cls) => (
-                  <ClassRow key={cls.id} cls={cls} />
+                  <ClassRow key={cls.id} cls={cls} isNext={cls.id === nextClassId} />
                 ))}
               </div>
             )}

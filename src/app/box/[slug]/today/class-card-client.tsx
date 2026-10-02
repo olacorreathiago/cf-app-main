@@ -237,6 +237,8 @@ export function ClassCardClient({ cls, slug, boxId, coaches, autoOpenCheckIn }: 
   const isOngoing = cls.status === "ongoing";
   const isFinished = cls.status === "finished";
   const canCheckIn = isOngoing || isFinished;
+  // Finished classes start collapsed; upcoming/ongoing show everything.
+  const [expanded, setExpanded] = useState(!isFinished || (autoOpenCheckIn ?? false));
 
   // Optimistic attended state (undefined = fall back to server value)
   const [optimisticAttended, setOptimisticAttended] = useState<
@@ -410,7 +412,27 @@ export function ClassCardClient({ cls, slug, boxId, coaches, autoOpenCheckIn }: 
         )}
       >
         {/* Header */}
-        <div className={cn("px-5 py-4", isOngoing && "bg-accent/5")}>
+        <div
+          className={cn(
+            "px-5 py-4",
+            isOngoing && "bg-accent/5",
+            isFinished && "cursor-pointer transition-colors hover:bg-bg-card-hover"
+          )}
+          onClick={isFinished ? () => setExpanded((v) => !v) : undefined}
+          role={isFinished ? "button" : undefined}
+          aria-expanded={isFinished ? expanded : undefined}
+          tabIndex={isFinished ? 0 : undefined}
+          onKeyDown={
+            isFinished
+              ? (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setExpanded((v) => !v);
+                  }
+                }
+              : undefined
+          }
+        >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -433,7 +455,8 @@ export function ClassCardClient({ cls, slug, boxId, coaches, autoOpenCheckIn }: 
                 {formatTime(cls.starts_at)} · {cls.duration_minutes} min
               </p>
             </div>
-            <div className="text-right shrink-0">
+            <div className="flex items-start gap-3 shrink-0">
+            <div className="text-right">
               <p className="text-lg font-semibold text-text-primary tabular-nums">
                 {cls.results_count}/{cls.athletes.length}
               </p>
@@ -444,8 +467,32 @@ export function ClassCardClient({ cls, slug, boxId, coaches, autoOpenCheckIn }: 
                 </p>
               )}
             </div>
+            {isFinished && (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                aria-hidden="true"
+                className={cn("mt-1.5 text-text-tertiary transition-transform duration-200", expanded && "rotate-180")}
+              >
+                <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+            </div>
           </div>
         </div>
+
+        <AnimatePresence initial={false}>
+          {expanded && (
+            <motion.div
+              key="body"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="overflow-hidden"
+            >
 
         {/* WOD summary */}
         {cls.wods.length > 0 && (
@@ -491,6 +538,9 @@ export function ClassCardClient({ cls, slug, boxId, coaches, autoOpenCheckIn }: 
             Adicionar atleta
           </button>
         </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* ── Check-in drawer ─────────────────────────────────────────────────── */}

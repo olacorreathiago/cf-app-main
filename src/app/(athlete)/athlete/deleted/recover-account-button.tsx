@@ -17,8 +17,9 @@ export function RecoverAccountButton() {
         return;
       }
       toast.success("Conta recuperada.");
-      router.push("/athlete");
-      router.refresh();
+      // Hard navigation: the client router cache may still hold the earlier
+      // /athlete → /athlete/deleted redirect and bounce us back here.
+      window.location.assign("/athlete");
     });
   }
 
