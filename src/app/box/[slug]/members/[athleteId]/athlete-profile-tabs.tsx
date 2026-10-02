@@ -5,6 +5,7 @@ import { TabPerfil } from "./tab-perfil";
 import { TabPresencas } from "./tab-presencas";
 import type { AthletePresencasData, AthletePr, AthleteAtividadeData } from "@/lib/box/athlete-profile-actions";
 import type { Plan } from "@/lib/box/plan-actions";
+import type { MemberNote } from "@/lib/box/member-actions";
 
 interface Profile {
   id: string;
@@ -18,7 +19,6 @@ interface Membership {
   id: string;
   role: string;
   status: string;
-  notes: string | null;
   plan_id: string | null;
   created_at: string;
 }
@@ -32,6 +32,8 @@ interface Props {
   profile: Profile;
   roleLabel: Record<string, string>;
   plans: Plan[];
+  notes: MemberNote[];
+  currentUserId: string;
   presencasData: AthletePresencasData;
   prs: AthletePr[];
   atividadeData: AthleteAtividadeData;
@@ -59,6 +61,8 @@ export function AthleteProfileTabs({
   profile,
   roleLabel,
   plans,
+  notes,
+  currentUserId,
   presencasData,
   prs,
   atividadeData,
@@ -156,6 +160,8 @@ export function AthleteProfileTabs({
           viewerRole={viewerRole}
           roleLabel={roleLabel}
           plans={plans}
+          notes={notes}
+          currentUserId={currentUserId}
         />
       )}
 

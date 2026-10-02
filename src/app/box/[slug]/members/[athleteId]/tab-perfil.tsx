@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { suspendMember, reactivateMember, removeMember, changeRole, updateMemberNotes } from "@/lib/box/member-actions";
+import { suspendMember, reactivateMember, removeMember, changeRole, addMemberNote, deleteMemberNote, type MemberNote } from "@/lib/box/member-actions";
 import { assignPlan, type Plan } from "@/lib/box/plan-actions";
 import { useRouter } from "next/navigation";
 
@@ -18,7 +18,6 @@ interface Membership {
   id: string;
   role: string;
   status: string;
-  notes: string | null;
   plan_id: string | null;
   created_at: string;
 }
@@ -31,6 +30,8 @@ interface Props {
   viewerRole: string;
   roleLabel: Record<string, string>;
   plans: Plan[];
+  notes: MemberNote[];
+  currentUserId: string;
 }
 
 const ASSIGNABLE_ROLES: Record<string, string[]> = {
@@ -39,11 +40,13 @@ const ASSIGNABLE_ROLES: Record<string, string[]> = {
   manager: ["coach", "athlete"],
 };
 
-export function TabPerfil({ slug, boxId, membership, profile, viewerRole, roleLabel, plans }: Props) {
+export function TabPerfil({ slug, boxId, membership, profile, viewerRole, roleLabel, plans, notes: initialNotes, currentUserId }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [notes, setNotes] = useState(membership.notes ?? "");
-  const [editingNotes, setEditingNotes] = useState(false);
+  const [notes, setNotes] = useState<MemberNote[]>(initialNotes);
+  const [draft, setDraft] = useState("");
+  const [showAllNotes, setShowAllNotes] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showPlanMenu, setShowPlanMenu] = useState(false);
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(membership.plan_id);
@@ -101,17 +104,36 @@ export function TabPerfil({ slug, boxId, membership, profile, viewerRole, roleLa
     });
   }
 
-  function handleSaveNotes() {
+  function handleAddNote() {
+    const text = draft.trim();
+    if (!text) return;
     startTransition(async () => {
       try {
-        await updateMemberNotes(membership.id, boxId, slug, notes);
-        toast.success("Notas guardadas.");
-        setEditingNotes(false);
+        const note = await addMemberNote(membership.id, boxId, slug, text);
+        setNotes((prev) => [note, ...prev]);
+        setDraft("");
+        toast.success("Nota adicionada.");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erro ao guardar notas.");
+        toast.error(e instanceof Error ? e.message : "Erro ao guardar nota.");
       }
     });
   }
+
+  function handleDeleteNote(id: string) {
+    startTransition(async () => {
+      try {
+        await deleteMemberNote(id, boxId, slug);
+        setNotes((prev) => prev.filter((n) => n.id !== id));
+        setConfirmDeleteId(null);
+        toast.success("Nota apagada.");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Erro ao apagar nota.");
+      }
+    });
+  }
+
+  const VISIBLE_NOTES = 3;
+  const visibleNotes = showAllNotes ? notes : notes.slice(0, VISIBLE_NOTES);
 
   return (
     <div className="space-y-6">
@@ -224,55 +246,140 @@ export function TabPerfil({ slug, boxId, membership, profile, viewerRole, roleLa
         </section>
       )}
 
-      {/* Notas internas */}
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
+      {/* Notas internas — linha do tempo, da mais recente para a mais antiga */}
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-text-tertiary">
             Notas internas
           </h2>
-          {!editingNotes && (
-            <button
-              onClick={() => setEditingNotes(true)}
-              className="text-xs text-text-tertiary hover:text-text-primary transition-colors"
-            >
-              Editar
-            </button>
+          {notes.length > 0 && (
+            <span className="rounded-full bg-bg-input px-2 py-0.5 text-[10px] font-medium tabular-nums text-text-tertiary">
+              {notes.length}
+            </span>
           )}
         </div>
 
-        {editingNotes ? (
-          <div className="space-y-2">
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="Adiciona uma nota sobre este atleta..."
-              className="w-full rounded-xl border border-border bg-bg-input px-4 py-3 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent resize-none"
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={handleSaveNotes}
-                disabled={isPending}
-                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-black disabled:opacity-50"
-              >
-                Guardar
-              </button>
-              <button
-                onClick={() => { setNotes(membership.notes ?? ""); setEditingNotes(false); }}
-                className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-tertiary hover:text-text-primary"
-              >
-                Cancelar
-              </button>
-            </div>
+        {/* Composer */}
+        <div className="rounded-2xl border border-border bg-bg-card transition-colors focus-within:border-accent/50">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                handleAddNote();
+              }
+            }}
+            rows={2}
+            placeholder="Escreve uma nota sobre este atleta…"
+            className="block w-full resize-none bg-transparent px-4 pt-3.5 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
+          />
+          <div className="flex items-center justify-between gap-3 px-4 pb-3 pt-1">
+            <p className="flex items-center gap-1.5 text-[11px] text-text-tertiary">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+              Só gestores e coaches
+            </p>
+            <button
+              onClick={handleAddNote}
+              disabled={isPending || !draft.trim()}
+              className="rounded-full bg-accent px-4 py-1.5 text-xs font-semibold text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-30"
+            >
+              Adicionar
+            </button>
           </div>
+        </div>
+
+        {/* Timeline */}
+        {notes.length === 0 ? (
+          <p className="px-1 text-sm text-text-tertiary">Ainda sem notas.</p>
         ) : (
-          <div className="rounded-2xl border border-border bg-bg-card px-4 py-3 min-h-[64px]">
-            {notes ? (
-              <p className="text-sm text-text-secondary whitespace-pre-wrap">{notes}</p>
-            ) : (
-              <p className="text-sm text-text-tertiary">Sem notas. Visíveis apenas para gestores e coaches.</p>
-            )}
-          </div>
+          <ol className="relative">
+            {/* connector line, behind the avatars */}
+            <span className="absolute bottom-3 left-[13px] top-3 w-px bg-border" aria-hidden="true" />
+            {visibleNotes.map((note) => {
+              const mine = note.author_id === currentUserId;
+              const confirming = confirmDeleteId === note.id;
+              return (
+                <li key={note.id} className="group relative flex gap-3 py-2.5">
+                  <span
+                    className="relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-bg-input text-[10px] font-semibold uppercase text-text-secondary ring-4 ring-bg-base"
+                    aria-hidden="true"
+                  >
+                    {note.author_name ? initialsOf(note.author_name) : "·"}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="truncate text-xs">
+                        <span className="font-medium text-text-primary">
+                          {note.author_name ?? "Nota anterior"}
+                        </span>
+                        <span
+                          className="text-text-tertiary"
+                          title={new Date(note.created_at).toLocaleString("pt-PT")}
+                        >
+                          {" "}· {formatNoteDate(note.created_at)}
+                        </span>
+                      </p>
+                      {mine && (
+                        confirming ? (
+                          <span className="flex shrink-0 items-center gap-3 text-[11px]">
+                            <button
+                              onClick={() => handleDeleteNote(note.id)}
+                              disabled={isPending}
+                              className="font-medium text-error hover:underline disabled:opacity-50"
+                            >
+                              Apagar
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="text-text-tertiary hover:text-text-primary"
+                            >
+                              Cancelar
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDeleteId(note.id)}
+                            aria-label="Apagar nota"
+                            className="shrink-0 text-text-tertiary opacity-100 transition-all hover:text-error lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                              <path d="M6 6h12M9.5 6V4.5A1 1 0 0110.5 3.5h3a1 1 0 011 1V6M7.5 6v13a1.5 1.5 0 001.5 1.5h6a1.5 1.5 0 001.5-1.5V6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+                        )
+                      )}
+                    </div>
+                    <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-text-secondary">
+                      {note.body}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+
+        {notes.length > VISIBLE_NOTES && (
+          <button
+            onClick={() => setShowAllNotes((v) => !v)}
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border py-2 text-xs text-text-secondary transition-colors hover:border-text-tertiary hover:text-text-primary"
+          >
+            {showAllNotes ? "Ver menos" : `Ver mais · ${notes.length - VISIBLE_NOTES} ${notes.length - VISIBLE_NOTES === 1 ? "nota" : "notas"}`}
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
+              className={showAllNotes ? "rotate-180" : ""}
+            >
+              <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
         )}
       </section>
 
@@ -354,4 +461,32 @@ function FieldRow({
       </span>
     </div>
   );
+}
+
+function initialsOf(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("");
+}
+
+function formatNoteDate(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const time = d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+  const dayDiff = Math.round(
+    (new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() -
+      new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) /
+      86_400_000
+  );
+  if (dayDiff === 0) return `hoje, ${time}`;
+  if (dayDiff === 1) return `ontem, ${time}`;
+  if (dayDiff < 7) return `há ${dayDiff} dias`;
+  return d.toLocaleDateString("pt-PT", {
+    day: "numeric",
+    month: "short",
+    ...(d.getFullYear() !== now.getFullYear() && { year: "numeric" }),
+  });
 }

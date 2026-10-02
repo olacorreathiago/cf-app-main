@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { AthleteProfileTabs } from "./athlete-profile-tabs";
 import { getAthletePresencas, getAthletePrs, getAthleteAtividade } from "@/lib/box/athlete-profile-actions";
 import { getPlans } from "@/lib/box/plan-actions";
+import { getMemberNotes } from "@/lib/box/member-actions";
 
 export const metadata: Metadata = { title: "Perfil do Atleta" };
 
@@ -65,11 +66,12 @@ export default async function AthleteProfilePage({ params }: Props) {
     phone: string | null;
   };
 
-  const [presencasData, prs, atividadeData, plans] = await Promise.all([
+  const [presencasData, prs, atividadeData, plans, notes] = await Promise.all([
     getAthletePresencas(profile.id, box.id),
     getAthletePrs(profile.id, box.id),
     getAthleteAtividade(profile.id, profile.email, box.id),
     getPlans(box.id),
+    getMemberNotes(membership.id, box.id),
   ]);
 
   return (
@@ -83,10 +85,11 @@ export default async function AthleteProfilePage({ params }: Props) {
           id: membership.id,
           role: membership.role,
           status: membership.status,
-          notes: membership.notes as string | null,
           plan_id: (membership as unknown as { plan_id: string | null }).plan_id,
           created_at: membership.created_at,
         }}
+        notes={notes}
+        currentUserId={user.id}
         plans={plans.filter((p) => p.active)}
         profile={profile}
         roleLabel={ROLE_LABEL}

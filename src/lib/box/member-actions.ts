@@ -121,17 +121,103 @@ export async function removeMember(membershipId: string, boxId: string, slug: st
   revalidatePath(`/box/${slug}/members`);
 }
 
-export async function updateMemberNotes(membershipId: string, boxId: string, slug: string, notes: string) {
-  await assertStaffRole(boxId);
+export interface MemberNote {
+  id: string;
+  body: string;
+  created_at: string;
+  author_id: string | null;
+  author_name: string | null;
+}
 
-  const { error } = await supabaseAdmin
+// Notes are visible to (and writable by) coaches too, unlike the other member
+// actions, which are manager-and-up.
+async function assertNotesAccess(boxId: string) {
+  const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data } = await supabase
     .from("memberships")
-    .update({ notes: notes.trim() || null })
-    .eq("id", membershipId)
-    .eq("box_id", boxId);
+    .select("role")
+    .eq("user_id", user.id)
+    .eq("box_id", boxId)
+    .eq("status", "active")
+    .in("role", ["owner", "partner", "manager", "coach"])
+    .maybeSingle();
+
+  if (!data) throw new Error("Sem permissão.");
+  return { user };
+}
+
+export async function getMemberNotes(membershipId: string, boxId: string): Promise<MemberNote[]> {
+  await assertNotesAccess(boxId);
+
+  const { data, error } = await supabaseAdmin
+    .from("member_notes")
+    .select("id, body, created_at, author_id, profiles:author_id(full_name)")
+    .eq("membership_id", membershipId)
+    .eq("box_id", boxId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((n) => {
+    const author = n.profiles as unknown as { full_name: string | null } | null;
+    return {
+      id: n.id,
+      body: n.body,
+      created_at: n.created_at,
+      author_id: n.author_id,
+      author_name: author?.full_name ?? null,
+    };
+  });
+}
+
+export async function addMemberNote(
+  membershipId: string,
+  boxId: string,
+  slug: string,
+  body: string
+): Promise<MemberNote> {
+  const { user } = await assertNotesAccess(boxId);
+  const text = body.trim();
+  if (!text) throw new Error("A nota está vazia.");
+
+  const { data, error } = await supabaseAdmin
+    .from("member_notes")
+    .insert({ membership_id: membershipId, box_id: boxId, author_id: user.id, body: text })
+    .select("id, body, created_at, author_id, profiles:author_id(full_name)")
+    .single();
 
   if (error) throw new Error(error.message);
   revalidatePath(`/box/${slug}/members/${membershipId}`);
+
+  const author = data.profiles as unknown as { full_name: string | null } | null;
+  return {
+    id: data.id,
+    body: data.body,
+    created_at: data.created_at,
+    author_id: data.author_id,
+    author_name: author?.full_name ?? null,
+  };
+}
+
+export async function deleteMemberNote(noteId: string, boxId: string, slug: string) {
+  const { user } = await assertNotesAccess(boxId);
+
+  // Only the author can delete — notes without an author (migrated from the
+  // old single-text field) are permanent.
+  const { data: deleted, error } = await supabaseAdmin
+    .from("member_notes")
+    .delete()
+    .eq("id", noteId)
+    .eq("box_id", boxId)
+    .eq("author_id", user.id)
+    .select("membership_id");
+
+  if (error) throw new Error(error.message);
+  if (!deleted?.length) throw new Error("Só podes apagar as notas que escreveste.");
+  revalidatePath(`/box/${slug}/members/${deleted[0].membership_id}`);
 }
 
 export async function revokeInvite(inviteId: string, boxId: string, slug: string) {
