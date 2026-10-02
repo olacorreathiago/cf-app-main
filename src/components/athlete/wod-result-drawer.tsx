@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import confetti from "canvas-confetti";
+import { toast } from "sonner";
 import { recordWodResult, updateWodResult } from "@/lib/athlete/wod-result-actions";
 import { PrimaryButton, FieldInput, DrawerShell } from "@/components/shared";
 import type { AthleteDashboardWod } from "@/lib/athlete/dashboard-actions";
@@ -186,6 +187,7 @@ export function WodResultDrawer({ wod, boxId, classId, open, onClose, onSaved }:
   const [sets, setSets] = useState<SetRow[]>(() =>
     Array.from({ length: numSets }, () => ({ reps: defaultReps, weight: "" }))
   );
+  const [prDetail, setPrDetail] = useState<string | null>(null);
   const [weightUnit, setWeightUnit] = useState<WeightUnit>("kg");
 
   // EMOM — fixed by manager (time_cap_minutes)
@@ -257,6 +259,10 @@ export function WodResultDrawer({ wod, boxId, classId, open, onClose, onSaved }:
 
       if (res.error) { setError(res.error); return; }
       const isPR = res.isPR ?? false;
+      const best = res.liftBest;
+      const bestLabel = best ? `${best.weight} kg${best.reps ? ` × ${best.reps}` : ""}` : null;
+      setPrDetail(bestLabel);
+      if (!isPR && bestLabel) toast.success(`Melhor do dia: ${bestLabel}`);
       onSaved?.(result!.shortDisplay ?? result!.display, rx, isPR);
       if (isPR) {
         confetti({ particleCount: 140, spread: 90, origin: { y: 0.55 } });
@@ -324,7 +330,9 @@ export function WodResultDrawer({ wod, boxId, classId, open, onClose, onSaved }:
                 >
                   <p className="text-2xl mb-1">🏆</p>
                   <p className="text-base font-semibold text-amber-600 dark:text-amber-400">Novo Personal Record!</p>
-                  <p className="text-sm text-text-secondary mt-0.5">{wod.title}</p>
+                  <p className="text-sm text-text-secondary mt-0.5">
+                    {wod.title}{prDetail ? ` · ${prDetail}` : ""}
+                  </p>
                 </motion.div>
               )}
             </AnimatePresence>

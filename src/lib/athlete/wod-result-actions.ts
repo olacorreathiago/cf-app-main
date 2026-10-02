@@ -11,6 +11,23 @@ export interface RecordResultResponse {
   resultId?: string;
   isPR?: boolean;
   prMovement?: string;
+  /** Heaviest set of a weightlifting result — drives "Melhor do dia" feedback. */
+  liftBest?: { weight: number; reps: number | null };
+}
+
+// Heaviest set in sets_data (set rows carry weight + reps; other shapes are ignored).
+function heaviestSet(setsData: unknown): { weight: number; reps: number | null } | null {
+  if (!Array.isArray(setsData)) return null;
+  let best: { weight: number; reps: number | null } | null = null;
+  for (const row of setsData) {
+    const weight = (row as { weight?: unknown })?.weight;
+    if (typeof weight !== "number" || weight <= 0) continue;
+    if (!best || weight > best.weight) {
+      const reps = (row as { reps?: unknown }).reps;
+      best = { weight, reps: typeof reps === "number" && reps > 0 ? reps : null };
+    }
+  }
+  return best;
 }
 
 // ── Check-in enforcement ───────────────────────────────────────────────────
@@ -115,7 +132,7 @@ export async function recordWodResult(input: WodResultInput): Promise<RecordResu
 
   if (insertError || !result) return { error: "Erro ao guardar resultado. Tenta novamente." };
 
-  const { isPR } = await evaluatePR(supabase, {
+  const { isPR, isLift } = await evaluatePR(supabase, {
     userId: user.id,
     resultId: result.id,
     classDate,
@@ -130,7 +147,12 @@ export async function recordWodResult(input: WodResultInput): Promise<RecordResu
   });
 
   revalidatePath("/athlete");
-  return { resultId: result.id, isPR, prMovement: isPR ? (wod.benchmark_slug ?? wod.title) : undefined };
+  return {
+    resultId: result.id,
+    isPR,
+    prMovement: isPR ? (wod.benchmark_slug ?? wod.title) : undefined,
+    liftBest: isLift ? (heaviestSet(input.sets_data) ?? undefined) : undefined,
+  };
 }
 
 // ── Update existing result ─────────────────────────────────────────────────
@@ -193,7 +215,7 @@ export async function updateWodResult(input: UpdateResultInput): Promise<RecordR
 
   if (updateError) return { error: "Erro ao atualizar resultado. Tenta novamente." };
 
-  const { isPR } = await evaluatePR(supabase, {
+  const { isPR, isLift } = await evaluatePR(supabase, {
     userId: user.id,
     resultId: input.result_id,
     classDate,
@@ -208,5 +230,10 @@ export async function updateWodResult(input: UpdateResultInput): Promise<RecordR
   });
 
   revalidatePath("/athlete");
-  return { resultId: input.result_id, isPR, prMovement: isPR ? (wod.benchmark_slug ?? wod.title) : undefined };
+  return {
+    resultId: input.result_id,
+    isPR,
+    prMovement: isPR ? (wod.benchmark_slug ?? wod.title) : undefined,
+    liftBest: isLift ? (heaviestSet(input.sets_data) ?? undefined) : undefined,
+  };
 }

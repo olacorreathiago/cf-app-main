@@ -33,7 +33,7 @@ export async function evaluatePR(
     dnf: boolean;
     boxId: string | null; // null only for global (benchmark_slug) PRs
   }
-): Promise<{ isPR: boolean }> {
+): Promise<{ isPR: boolean; isLift?: boolean }> {
   const { userId, resultId, classDate, wodBenchmarkSlug, wodTitle, wodIsBenchmark, scoreType, scoreValue, rx, dnf, boxId } = params;
 
   const dnfFlag = dnf ?? false;
@@ -45,13 +45,29 @@ export async function evaluatePR(
   const movement = wodBenchmarkSlug ?? wodTitle;
   if (!isGlobal && !boxId) return { isPR: false };
 
-  const baseQuery = supabase
+  // Weightlifting lifts: the heaviest load ever logged is the PR, regardless of
+  // rep scheme (a 5x3 at 60 kg beats a 5x5 at 50 kg) and of the Rx flag. The
+  // sets/reps context lives on the linked result (wod_result_id → sets_data).
+  let isLift = false;
+  if (wodBenchmarkSlug && scoreType === "weight") {
+    const { data: bm } = await supabase
+      .from("benchmark_wods")
+      .select("category")
+      .eq("slug", wodBenchmarkSlug)
+      .maybeSingle();
+    isLift = bm?.category === "weightlifting";
+  }
+  const prRx = isLift ? true : rx;
+
+  let baseQuery = supabase
     .from("prs")
     .select("id, value")
     .eq("user_id", userId)
     .eq("unit", unit)
-    .eq("rx", rx)
     .eq("movement", movement);
+  baseQuery = isLift
+    ? baseQuery.order("value", { ascending: false }).limit(1)
+    : baseQuery.eq("rx", rx);
 
   const scopedQuery = isGlobal
     ? baseQuery.is("box_id", null).eq("benchmark_slug", wodBenchmarkSlug!)
@@ -61,16 +77,16 @@ export async function evaluatePR(
 
   const achievedAt = classDate ?? new Date().toISOString();
   const prPayload = isGlobal
-    ? { user_id: userId, box_id: null as null, benchmark_slug: wodBenchmarkSlug, movement, value: scoreValue, unit, rx, achieved_at: achievedAt, wod_result_id: resultId }
-    : { user_id: userId, box_id: boxId, benchmark_slug: null as null, movement, value: scoreValue, unit, rx, achieved_at: achievedAt, wod_result_id: resultId };
+    ? { user_id: userId, box_id: null as null, benchmark_slug: wodBenchmarkSlug, movement, value: scoreValue, unit, rx: prRx, achieved_at: achievedAt, wod_result_id: resultId }
+    : { user_id: userId, box_id: boxId, benchmark_slug: null as null, movement, value: scoreValue, unit, rx: prRx, achieved_at: achievedAt, wod_result_id: resultId };
 
   if (!existingPR) {
     const { error } = await supabase.from("prs").insert(prPayload);
     if (error) {
       console.error("[PR insert error]", error.message);
-      return { isPR: false };
+      return { isPR: false, isLift };
     }
-    return { isPR: true };
+    return { isPR: true, isLift };
   }
 
   if (isBetterScore(unit, scoreValue, existingPR.value)) {
@@ -79,10 +95,10 @@ export async function evaluatePR(
       .eq("id", existingPR.id);
     if (error) {
       console.error("[PR update error]", error.message);
-      return { isPR: false };
+      return { isPR: false, isLift };
     }
-    return { isPR: true };
+    return { isPR: true, isLift };
   }
 
-  return { isPR: false };
+  return { isPR: false, isLift };
 }

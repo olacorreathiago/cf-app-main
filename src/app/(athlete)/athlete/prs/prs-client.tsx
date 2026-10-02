@@ -197,6 +197,47 @@ function ManualEntryForm({ benchmark, onSaved, onCancel }: {
   );
 }
 
+// ── Evolution chart (weight lifts) ─────────────────────────────────────────
+
+function EvolutionChart({ history }: { history: ResultHistoryEntry[] }) {
+  const points = history
+    .filter((h) => typeof h.score_value === "number" && !h.dnf)
+    .map((h) => ({ t: new Date(h.class_date ?? h.recorded_at).getTime(), v: h.score_value as number, pr: h.is_pr }))
+    .sort((a, b) => a.t - b.t);
+  if (points.length < 2) return null;
+
+  const W = 320, H = 72, PAD = 8;
+  const minV = Math.min(...points.map((p) => p.v));
+  const maxV = Math.max(...points.map((p) => p.v));
+  const minT = points[0].t, maxT = points[points.length - 1].t;
+  const x = (t: number) => PAD + (maxT === minT ? 0.5 : (t - minT) / (maxT - minT)) * (W - PAD * 2);
+  const y = (v: number) => H - PAD - (maxV === minV ? 0.5 : (v - minV) / (maxV - minV)) * (H - PAD * 2);
+  const line = points.map((p) => `${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
+
+  return (
+    <div className="mb-4 rounded-2xl border border-border bg-bg-card px-4 py-3">
+      <div className="mb-1 flex items-baseline justify-between">
+        <p className="label-caps text-text-tertiary">Evolução</p>
+        <p className="text-[11px] tabular-nums text-text-tertiary">{minV} → {maxV} kg</p>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-[72px] w-full overflow-visible" role="img" aria-label="Evolução da carga ao longo do tempo">
+        <polyline points={line} fill="none" stroke="var(--color-accent, #F0B417)" strokeOpacity="0.5" strokeWidth="1.5" strokeLinejoin="round" />
+        {points.map((p, i) => (
+          <circle
+            key={i}
+            cx={x(p.t)}
+            cy={y(p.v)}
+            r={p.pr ? 3.5 : 2.5}
+            fill={p.pr ? "var(--color-accent, #F0B417)" : "var(--color-bg-card, #181611)"}
+            stroke="var(--color-accent, #F0B417)"
+            strokeWidth="1.5"
+          />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 // ── PR History Drawer ──────────────────────────────────────────────────────
 
 function HistoryDrawer({ benchmark, onClose }: { benchmark: BenchmarkWithPr; onClose: () => void }) {
@@ -205,6 +246,7 @@ function HistoryDrawer({ benchmark, onClose }: { benchmark: BenchmarkWithPr; onC
   const [loading, setLoading] = useState(true);
   const [showManualForm, setShowManualForm] = useState(false);
   const [prBanner, setPrBanner] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   function loadHistory() {
     const params = benchmark.is_global
@@ -233,6 +275,9 @@ function HistoryDrawer({ benchmark, onClose }: { benchmark: BenchmarkWithPr; onC
   }
 
   const currentPr = benchmark.pr_rx ?? benchmark.pr_scaled;
+  // The workout that set the PR (shown as context under the value)
+  const prEntry = currentPr?.result_id ? history?.find((h) => h.id === currentPr.result_id) ?? null : null;
+  const isWeight = benchmark.score_type === "weight" || benchmark.wod_type === "For Load";
 
   return (
     <>
@@ -295,6 +340,15 @@ function HistoryDrawer({ benchmark, onClose }: { benchmark: BenchmarkWithPr; onC
             <div>
               <p className="text-xs text-text-tertiary mb-0.5">Personal Record</p>
               <p className="font-display text-3xl text-accent">{currentPr.score_display}</p>
+              {prEntry && (
+                <p className="mt-1 text-xs text-text-secondary">
+                  {[
+                    prEntry.scheme,
+                    prEntry.wod_title,
+                    format(new Date(prEntry.class_date ?? prEntry.recorded_at), "d MMM yyyy", { locale: pt }),
+                  ].filter(Boolean).join(" · ")}
+                </p>
+              )}
             </div>
             <div className="text-right">
               {benchmark.pr_rx && (
@@ -355,6 +409,8 @@ function HistoryDrawer({ benchmark, onClose }: { benchmark: BenchmarkWithPr; onC
           )}
         </div>
 
+        {isWeight && history && history.length >= 2 && <EvolutionChart history={history} />}
+
         {loading ? (
           <div className="flex items-center justify-center py-10">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-border border-t-accent" />
@@ -365,47 +421,118 @@ function HistoryDrawer({ benchmark, onClose }: { benchmark: BenchmarkWithPr; onC
           </div>
         ) : (
           <div className="rounded-2xl border border-border bg-bg-card divide-y divide-border overflow-hidden">
-            {history.map((entry) => (
-              <div key={entry.id} className={cn("px-4 py-3.5 flex items-center gap-3", entry.is_pr && "bg-amber-500/5")}>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {entry.is_pr && (
-                      <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">PR</span>
-                    )}
-                    {entry.dnf ? (
-                      <span className="text-sm font-semibold text-red-500">{entry.score_display ?? "DNF"}</span>
-                    ) : (
-                      <span className="text-sm font-semibold text-text-primary">{entry.score_display}</span>
-                    )}
-                    {entry.rx && (
-                      <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-semibold text-green-600 dark:text-green-400">RX</span>
-                    )}
-                    {!entry.rx && !entry.dnf && (
-                      <span className="rounded-full bg-bg-input border border-border px-2 py-0.5 text-[10px] text-text-tertiary">Scaled</span>
-                    )}
-                    {entry.is_manual && (
-                      <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">Manual</span>
-                    )}
-                  </div>
-                  {entry.notes && (
-                    <p className="text-xs text-text-tertiary mt-0.5 truncate">{entry.notes}</p>
-                  )}
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-xs text-text-secondary">
-                    {format(new Date(entry.class_date ?? entry.recorded_at), "d MMM yyyy", { locale: pt })}
-                  </p>
-                  {entry.box_name && (
-                    <p className="text-[11px] text-text-tertiary mt-0.5">{entry.box_name}</p>
-                  )}
-                  {entry.box_closed && (
-                    <div className="mt-1 flex justify-end">
-                      <ClosedBoxBadge closureMessage={entry.box_closure_message} />
+            {history.map((entry) => {
+              const open = expandedId === entry.id;
+              const heaviest = entry.lift_sets ? Math.max(...entry.lift_sets.map((x) => x.weight)) : null;
+              return (
+                <div key={entry.id} className={cn(entry.is_pr && "bg-amber-500/5")}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(open ? null : entry.id)}
+                    aria-expanded={open}
+                    className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-bg-input/40"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {entry.is_pr && (
+                          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">PR</span>
+                        )}
+                        {entry.dnf ? (
+                          <span className="text-sm font-semibold text-red-500">{entry.score_display ?? "DNF"}</span>
+                        ) : (
+                          <span className="text-sm font-semibold text-text-primary">{entry.score_display}</span>
+                        )}
+                        {entry.scheme && (
+                          <span className="rounded-full bg-bg-input border border-border px-2 py-0.5 text-[10px] font-medium tabular-nums text-text-secondary">{entry.scheme}</span>
+                        )}
+                        {entry.rx && !isWeight && (
+                          <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-semibold text-green-600 dark:text-green-400">RX</span>
+                        )}
+                        {!entry.rx && !entry.dnf && !isWeight && (
+                          <span className="rounded-full bg-bg-input border border-border px-2 py-0.5 text-[10px] text-text-tertiary">Scaled</span>
+                        )}
+                        {entry.is_manual && (
+                          <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">Manual</span>
+                        )}
+                      </div>
+                      {entry.wod_title && (
+                        <p className="text-xs text-text-tertiary mt-0.5 truncate">{entry.wod_title}</p>
+                      )}
                     </div>
-                  )}
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-text-secondary">
+                        {format(new Date(entry.class_date ?? entry.recorded_at), "d MMM yyyy", { locale: pt })}
+                      </p>
+                      {entry.box_name && (
+                        <p className="text-[11px] text-text-tertiary mt-0.5">{entry.box_name}</p>
+                      )}
+                      {entry.box_closed && (
+                        <div className="mt-1 flex justify-end">
+                          <ClosedBoxBadge closureMessage={entry.box_closure_message} />
+                        </div>
+                      )}
+                    </div>
+                    <svg
+                      width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"
+                      className={cn("shrink-0 text-text-tertiary transition-transform duration-200", open && "rotate-180")}
+                    >
+                      <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {open && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="overflow-hidden"
+                      >
+                        <div className="space-y-3 border-t border-border/60 bg-bg-base/40 px-4 py-4">
+                          {(entry.wod_title || entry.class_name) && (
+                            <div>
+                              <p className="label-caps text-text-tertiary mb-0.5">Treino</p>
+                              <p className="text-sm font-medium text-text-primary">{entry.wod_title ?? "Registo manual"}</p>
+                              {entry.class_name && (
+                                <p className="text-xs text-text-tertiary">{entry.class_name}</p>
+                              )}
+                            </div>
+                          )}
+                          {entry.wod_description && (
+                            <p className="whitespace-pre-wrap text-xs leading-relaxed text-text-secondary">{entry.wod_description}</p>
+                          )}
+                          {entry.lift_sets && (
+                            <div>
+                              <p className="label-caps text-text-tertiary mb-1.5">Séries</p>
+                              <ul className="space-y-1">
+                                {entry.lift_sets.map((st, i) => (
+                                  <li key={i} className="flex items-center justify-between text-sm tabular-nums">
+                                    <span className="text-text-tertiary">Série {st.set ?? i + 1}</span>
+                                    <span className={cn(st.weight === heaviest ? "font-semibold text-accent" : "text-text-secondary")}>
+                                      {st.weight} kg{st.reps ? ` × ${st.reps}` : ""}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {entry.notes && (
+                            <div>
+                              <p className="label-caps text-text-tertiary mb-0.5">Notas</p>
+                              <p className="whitespace-pre-wrap text-xs text-text-secondary">{entry.notes}</p>
+                            </div>
+                          )}
+                          {!entry.wod_title && !entry.lift_sets && !entry.notes && (
+                            <p className="text-xs text-text-tertiary">Sem mais detalhes para este registo.</p>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </motion.div>

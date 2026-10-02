@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { wodSchema, WOD_TYPES, WOD_CATEGORIES, DEFAULT_SCORE_TYPE, SCORE_TYPES, type WodInput, type WodCategory, type Movement, type ScoreType } from "@/schemas/wod";
 import { createWod, updateWod, publishWod } from "@/lib/box/wod-actions";
 import { PrimaryButton, FieldInput, DrawerShell } from "@/components/shared";
+import { liftLabel } from "@/lib/lifts";
 import type { Wod, BenchmarkWod } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -155,9 +156,13 @@ interface Props {
   boxId: string;
   wod?: Wod;
   benchmarks: BenchmarkWod[];
+  /** Called after a WOD is created, with its new id (and whether it was published). */
+  onCreated?: (wodId: string, published: boolean) => void;
+  /** Hide "save as draft" — used where only published WODs are usable (class picker). */
+  publishOnly?: boolean;
 }
 
-export function WodDrawer({ open, onClose, boxId, wod, benchmarks }: Props) {
+export function WodDrawer({ open, onClose, boxId, wod, benchmarks, onCreated, publishOnly }: Props) {
   const isEditing = Boolean(wod);
   const [step, setStep] = useState<DrawerStep>(isEditing ? "form" : "origin");
   const [pending, startTransition] = useTransition();
@@ -184,6 +189,27 @@ export function WodDrawer({ open, onClose, boxId, wod, benchmarks }: Props) {
   const selectedScoreType = watch("score_type");
   const selectedBenchmarkSlug = watch("benchmark_slug");
   const isBenchmark = watch("is_benchmark");
+
+  // Weightlifting lifts a For Load WOD can be tied to. Linking only sets the
+  // benchmark_slug: the heaviest load an athlete logs counts toward the lift's PR,
+  // whatever the sets x reps scheme the coach programmed.
+  const liftOptions = benchmarks.filter((b) => b.category === "weightlifting");
+  const linkedLift = liftOptions.find((b) => b.slug === selectedBenchmarkSlug) ?? null;
+  const showLiftPicker =
+    selectedType === "For Load" && (!selectedBenchmarkSlug || linkedLift !== null);
+
+  function handleSelectLift(slug: string) {
+    if (!slug) {
+      setValue("benchmark_slug", null);
+      setValue("is_benchmark", false);
+      return;
+    }
+    setValue("benchmark_slug", slug);
+    setValue("is_benchmark", true);
+    setValue("category", "weightlifting");
+    setValue("score_type", "weight");
+    if (!watch("title")) setValue("title", liftLabel(liftOptions.find((b) => b.slug === slug)?.name ?? ""));
+  }
 
   useEffect(() => {
     if (open) {
@@ -233,6 +259,10 @@ export function WodDrawer({ open, onClose, boxId, wod, benchmarks }: Props) {
           await publishWod(result.id, boxId);
         }
         toast.success(shouldPublish ? "WOD criado e publicado" : "Rascunho guardado");
+        if (result.id) {
+          onCreated?.(result.id, shouldPublish);
+          return;
+        }
       }
       onClose();
     });
@@ -290,14 +320,16 @@ export function WodDrawer({ open, onClose, boxId, wod, benchmarks }: Props) {
                 ? "Guardar alterações"
                 : "Publicar WOD"}
             </PrimaryButton>
-            <PrimaryButton
-              type="button"
-              variant="secondary"
-              loading={pending}
-              onClick={handleSubmit((data) => submitForm(data, false))}
-            >
-              Guardar como rascunho
-            </PrimaryButton>
+            {!publishOnly && (
+              <PrimaryButton
+                type="button"
+                variant="secondary"
+                loading={pending}
+                onClick={handleSubmit((data) => submitForm(data, false))}
+              >
+                Guardar como rascunho
+              </PrimaryButton>
+            )}
             <PrimaryButton type="button" variant="secondary" onClick={onClose}>
               Cancelar
             </PrimaryButton>
@@ -436,6 +468,31 @@ export function WodDrawer({ open, onClose, boxId, wod, benchmarks }: Props) {
                   </div>
                 )}
 
+                {/* Levantamento (weightlifting) */}
+                {showLiftPicker && liftOptions.length > 0 && (
+                  <div className="space-y-1.5">
+                    <label htmlFor="wod-lift" className="text-sm font-medium text-text-secondary">
+                      Levantamento <span className="font-normal text-text-tertiary">· opcional</span>
+                    </label>
+                    <select
+                      id="wod-lift"
+                      value={linkedLift?.slug ?? ""}
+                      onChange={(e) => handleSelectLift(e.target.value)}
+                      className="w-full rounded-xl border border-border bg-bg-input px-4 py-3 text-sm text-text-primary focus:border-accent/50 focus:outline-none"
+                    >
+                      <option value="">Nenhum</option>
+                      {liftOptions.map((b) => (
+                        <option key={b.slug} value={b.slug}>{liftLabel(b.name)}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-text-tertiary">
+                      {linkedLift
+                        ? `A maior carga de cada atleta conta para o recorde de ${liftLabel(linkedLift.name)}, seja qual for o esquema de séries e reps.`
+                        : "Liga este WOD a um levantamento para registar recordes."}
+                    </p>
+                  </div>
+                )}
+
                 {/* Round-based score types — nº de rondas definido pelo manager */}
                 {(selectedScoreType === "round-best" || selectedScoreType === "round-total" || selectedScoreType === "round-worst" || selectedScoreType === "round-reps") && (
                   <div className="w-1/2 pr-1.5">
@@ -454,7 +511,7 @@ export function WodDrawer({ open, onClose, boxId, wod, benchmarks }: Props) {
                 )}
 
                 {/* É um benchmark? */}
-                {selectedBenchmarkSlug ? (
+                {linkedLift ? null : selectedBenchmarkSlug ? (
                   <div className="w-full flex items-center justify-between rounded-2xl border border-amber-400/30 bg-amber-500/8 px-4 py-3.5">
                     <div className="text-left">
                       <p className="text-sm font-semibold text-amber-500">Benchmark global</p>

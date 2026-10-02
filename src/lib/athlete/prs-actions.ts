@@ -3,6 +3,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { liftLabel, parseLiftSets, setsScheme, type LiftSet } from "@/lib/lifts";
 
 export interface PrEntry {
   id: string;
@@ -10,6 +11,8 @@ export interface PrEntry {
   unit: string;
   achieved_at: string;
   score_display: string;
+  /** Result that set this PR — lets the UI show the workout it came from. */
+  result_id: string | null;
 }
 
 export interface BenchmarkWithPr {
@@ -41,6 +44,12 @@ export interface ResultHistoryEntry {
   box_closure_message: string | null;
   is_pr: boolean;
   is_manual: boolean; // registered outside a class (e.g. at home)
+  // Workout context (drill-down)
+  wod_title: string | null;
+  wod_description: string | null;
+  class_name: string | null;
+  lift_sets: LiftSet[] | null; // weightlifting sets (weight × reps)
+  scheme: string | null;       // e.g. "5×3"
 }
 
 export interface AthletePrsData {
@@ -93,7 +102,7 @@ export async function getAthletePrsData(): Promise<AthletePrsData> {
     const { data: globalPrs } = globalSlugs.length > 0
       ? await supabase
           .from("prs")
-          .select("id, benchmark_slug, value, unit, rx, achieved_at")
+          .select("id, benchmark_slug, value, unit, rx, achieved_at, wod_result_id")
           .eq("user_id", user.id)
           .is("box_id", null)
           .in("benchmark_slug", globalSlugs)
@@ -103,12 +112,12 @@ export async function getAthletePrsData(): Promise<AthletePrsData> {
     for (const pr of globalPrs ?? []) {
       const key = pr.benchmark_slug!;
       if (!globalPrMap[key]) globalPrMap[key] = { rx: null, scaled: null };
-      const entry: PrEntry = { id: pr.id, value: pr.value, unit: pr.unit, achieved_at: pr.achieved_at, score_display: formatPrDisplay(pr.value, pr.unit) };
+      const entry: PrEntry = { id: pr.id, value: pr.value, unit: pr.unit, achieved_at: pr.achieved_at, score_display: formatPrDisplay(pr.value, pr.unit), result_id: pr.wod_result_id ?? null };
       if (pr.rx) globalPrMap[key].rx = entry; else globalPrMap[key].scaled = entry;
     }
     const benchmarks: BenchmarkWithPr[] = (allBenchmarkWods ?? []).map((b) => {
       const prData = globalPrMap[b.slug] ?? { rx: null, scaled: null };
-      return { wod_id: null, slug: b.slug, name: b.name, category: b.category ?? "original", wod_type: b.type, score_type: b.score_type ?? null, description: b.description, is_global: true, pr_rx: prData.rx, pr_scaled: prData.scaled };
+      return { wod_id: null, slug: b.slug, name: b.category === "weightlifting" ? liftLabel(b.name) : b.name, category: b.category ?? "original", wod_type: b.type, score_type: b.score_type ?? null, description: b.description, is_global: true, pr_rx: prData.rx, pr_scaled: prData.scaled };
     });
     return { activeBoxId: "", benchmarks };
   }
@@ -135,7 +144,7 @@ export async function getAthletePrsData(): Promise<AthletePrsData> {
   const { data: globalPrs } = globalSlugs.length > 0
     ? await supabase
         .from("prs")
-        .select("id, benchmark_slug, value, unit, rx, achieved_at")
+        .select("id, benchmark_slug, value, unit, rx, achieved_at, wod_result_id")
         .eq("user_id", user.id)
         .is("box_id", null)
         .in("benchmark_slug", globalSlugs)
@@ -143,7 +152,7 @@ export async function getAthletePrsData(): Promise<AthletePrsData> {
 
   const { data: boxPrs } = await supabase
     .from("prs")
-    .select("id, movement, value, unit, rx, achieved_at")
+    .select("id, movement, value, unit, rx, achieved_at, wod_result_id")
     .eq("user_id", user.id)
     .eq("box_id", activeBoxId)
     .is("benchmark_slug", null);
@@ -155,7 +164,7 @@ export async function getAthletePrsData(): Promise<AthletePrsData> {
   for (const pr of globalPrs ?? []) {
     const key = pr.benchmark_slug!;
     if (!globalPrMap[key]) globalPrMap[key] = { rx: null, scaled: null };
-    const entry: PrEntry = { id: pr.id, value: pr.value, unit: pr.unit, achieved_at: pr.achieved_at, score_display: formatPrDisplay(pr.value, pr.unit) };
+    const entry: PrEntry = { id: pr.id, value: pr.value, unit: pr.unit, achieved_at: pr.achieved_at, score_display: formatPrDisplay(pr.value, pr.unit), result_id: pr.wod_result_id ?? null };
     if (pr.rx) globalPrMap[key].rx = entry;
     else globalPrMap[key].scaled = entry;
   }
@@ -164,7 +173,7 @@ export async function getAthletePrsData(): Promise<AthletePrsData> {
   for (const pr of boxPrs ?? []) {
     const key = pr.movement;
     if (!boxPrMap[key]) boxPrMap[key] = { rx: null, scaled: null };
-    const entry: PrEntry = { id: pr.id, value: pr.value, unit: pr.unit, achieved_at: pr.achieved_at, score_display: formatPrDisplay(pr.value, pr.unit) };
+    const entry: PrEntry = { id: pr.id, value: pr.value, unit: pr.unit, achieved_at: pr.achieved_at, score_display: formatPrDisplay(pr.value, pr.unit), result_id: pr.wod_result_id ?? null };
     if (pr.rx) boxPrMap[key].rx = entry;
     else boxPrMap[key].scaled = entry;
   }
@@ -187,7 +196,7 @@ export async function getAthletePrsData(): Promise<AthletePrsData> {
     return {
       wod_id: linkedWod?.id ?? null,
       slug: b.slug,
-      name: b.name,
+      name: b.category === "weightlifting" ? liftLabel(b.name) : b.name,
       category: b.category ?? "original",
       wod_type: b.type,
       score_type: linkedWod?.score_type ?? b.score_type ?? null,
@@ -224,7 +233,7 @@ export async function getBenchmarkHistory(params: { benchmarkSlug: string } | { 
 
   let results;
 
-  const selectFields = "id, class_id, score_display, score_value, rx, dnf, notes, recorded_at, box_id, is_manual";
+  const selectFields = "id, wod_id, class_id, score_display, score_value, rx, dnf, notes, recorded_at, box_id, is_manual, sets_data";
 
   if ("benchmarkSlug" in params) {
     const { data: wods } = await supabase
@@ -276,16 +285,28 @@ export async function getBenchmarkHistory(params: { benchmarkSlug: string } | { 
   // Class dates — use starts_at as the display date instead of recorded_at
   const classIds = [...new Set(results.map((r) => r.class_id).filter(Boolean) as string[])];
   const { data: classes } = classIds.length > 0
-    ? await supabase.from("classes").select("id, starts_at").in("id", classIds)
+    ? await supabase.from("classes").select("id, name, starts_at").in("id", classIds)
     : { data: [] };
   const classDateMap = new Map((classes ?? []).map((c) => [c.id, c.starts_at]));
+  const classNameMap = new Map((classes ?? []).map((c) => [c.id, c.name as string | null]));
+
+  // WOD title/description for the workout drill-down
+  const wodIds = [...new Set(results.map((r) => (r as { wod_id?: string | null }).wod_id).filter(Boolean) as string[])];
+  const { data: wodRows } = wodIds.length > 0
+    ? await supabase.from("wods").select("id, title, description").in("id", wodIds)
+    : { data: [] };
+  const wodMap = new Map((wodRows ?? []).map((w) => [w.id, w]));
 
   // Which results are PRs
   const resultIds = results.map((r) => r.id);
   const { data: prRows } = await supabase.from("prs").select("wod_result_id").in("wod_result_id", resultIds);
   const prSet = new Set((prRows ?? []).map((p) => p.wod_result_id).filter(Boolean) as string[]);
 
-  return results.map((r) => ({
+  return results.map((r) => {
+    const wodId = (r as { wod_id?: string | null }).wod_id ?? null;
+    const wod = wodId ? wodMap.get(wodId) : undefined;
+    const liftSets = parseLiftSets((r as { sets_data?: unknown }).sets_data);
+    return {
     id: r.id,
     score_display: r.score_display,
     score_value: r.score_value,
@@ -299,5 +320,11 @@ export async function getBenchmarkHistory(params: { benchmarkSlug: string } | { 
     box_closure_message: r.box_id ? (boxClosureMessageMap.get(r.box_id) ?? null) : null,
     is_pr: prSet.has(r.id),
     is_manual: (r as { is_manual?: boolean }).is_manual ?? false,
-  }));
+    wod_title: wod?.title ?? null,
+    wod_description: wod?.description ?? null,
+    class_name: r.class_id ? (classNameMap.get(r.class_id) ?? null) : null,
+    lift_sets: liftSets,
+    scheme: setsScheme(liftSets),
+  };
+  });
 }
